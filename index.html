@@ -109,6 +109,59 @@
   .imp-add select,.imp-add input{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
   .imp-add input{flex:1;min-width:0}
   .imp-add button{padding:5px 10px;font-size:13px}
+  .slot-hint{font-size:12px;color:var(--ok);white-space:nowrap}
+  /* 노트함 */
+  .library{position:fixed;inset:0;background:var(--bg);z-index:15;display:flex;flex-direction:column}
+  .library[hidden]{display:none}
+  .lib-top{display:flex;gap:10px;align-items:center;padding:14px 18px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .lib-top h2{margin:0;font-size:18px;margin-right:auto}
+  .lib-top input{padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);font:inherit;font-size:14px;width:220px}
+  .lib-body{flex:1;display:grid;grid-template-columns:230px 330px 1fr;min-height:0}
+  .lib-col{overflow-y:auto;min-height:0;border-right:1px solid var(--line)}
+  #libCourses{padding:10px}
+  .course-item{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:10px 12px;margin-bottom:4px;white-space:normal}
+  .course-item:hover{background:#efebe2}
+  .course-item.active{background:var(--accent-soft)}
+  .course-item b{display:block;font-size:14.5px}
+  .course-item small{color:var(--muted);font-size:12px;display:block;margin-top:2px}
+  .course-item .badge{display:inline-block;background:#d9413a;color:#fff;border-radius:999px;font-size:11px;padding:0 7px;margin-left:4px;vertical-align:1px}
+  #libList{padding:12px}
+  .lib-h{font-size:13px;font-weight:700;color:var(--muted);margin:6px 4px 8px}
+  .lec-card{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:8px;white-space:normal}
+  .lec-card.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .lec-card .d{font-size:12px;color:var(--muted)}
+  .lec-card .t{font-weight:700;font-size:14.5px;margin:2px 0}
+  .lec-card .p{font-size:13px;color:#5d5a52;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .course-imp{margin:0 0 14px}
+  .course-imp .important{display:block;margin:0}
+  .course-imp li small{color:var(--muted);font-size:12px;margin-left:4px;white-space:nowrap}
+  #libDetail{padding:8px 26px 30px;overflow-y:auto}
+  .det-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 4px}
+  .det-head h3{margin:0;font-size:20px;flex:1 1 100%}
+  .det-head .meta{font-size:13px;color:var(--muted)}
+  .det-head input{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;width:170px;background:#fff}
+  .lib-empty{color:var(--muted);font-size:14px;padding:30px 10px;text-align:center}
+  .mob-back{display:none}
+  /* 시간표 */
+  .modal.wide{width:min(620px,100%)}
+  .tt-row{display:grid;grid-template-columns:1fr 68px 124px 124px 28px;gap:6px;margin-bottom:6px;align-items:center}
+  .tt-row input,.tt-row select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;background:#fff}
+  .tt-row button{border:0;background:transparent;color:var(--muted);font-size:17px;padding:0}
+  .tt-head{display:grid;grid-template-columns:1fr 68px 124px 124px 28px;gap:6px;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  .tt-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:12px;font-size:11.5px}
+  .tt-grid .day{font-weight:700;text-align:center;color:var(--muted)}
+  .tt-grid .cell{background:var(--accent-soft);border-radius:6px;padding:4px 6px;color:var(--accent);line-height:1.35}
+  @media (max-width:760px){
+    .lib-body{grid-template-columns:1fr}
+    .lib-col{border-right:0}
+    .lib-body[data-view="courses"] #libList,.lib-body[data-view="courses"] #libDetail{display:none}
+    .lib-body[data-view="list"] #libCourses,.lib-body[data-view="list"] #libDetail{display:none}
+    .lib-body[data-view="detail"] #libCourses,.lib-body[data-view="detail"] #libList{display:none}
+    .mob-back{display:inline-block;margin:10px 0 0}
+    .lib-top input{width:100%;order:5}
+    #libDetail{padding:4px 16px 24px}
+    .tt-row,.tt-head{grid-template-columns:1fr 52px 96px 96px 22px}
+  }
   @media (max-width:760px){
     main{grid-template-columns:1fr;grid-template-rows:minmax(220px,38vh) minmax(320px,1fr)}
     header,.toolbar,.materials{padding-left:12px;padding-right:12px}
@@ -122,13 +175,17 @@
 <body>
 <header>
   <div class="brand"><span class="dot" id="recDot"></span>실시간 강의 노트</div>
-  <input id="course" placeholder="수업 이름 (예: 디자인과 문화)">
+  <input id="course" list="courseList" placeholder="수업 이름 (예: 디자인과 문화)">
+  <datalist id="courseList"></datalist>
   <input id="topic" placeholder="오늘 주제 (선택, 예: 아르누보와 가우디)">
   <div class="lectures">
     <select id="lectureSel" title="저장된 강의"></select>
     <span id="lecCount"></span>
+    <span class="slot-hint" id="slotHint"></span>
     <button id="newLecBtn" class="primary" style="background:#22211f;border-color:#22211f">+ 새 강의</button>
     <button id="delLecBtn" class="ghost" title="이 강의 삭제">🗑</button>
+    <button id="libBtn">📚 노트함</button>
+    <button id="ttBtn">🗓 시간표</button>
   </div>
 </header>
 <div class="toolbar">
@@ -189,6 +246,35 @@
   </section>
 </main>
 
+<div class="library" id="library" hidden>
+  <div class="lib-top">
+    <button id="libClose">← 노트로 돌아가기</button>
+    <h2>📚 강의 노트함</h2>
+    <input id="libSearch" type="search" placeholder="노트·주제 검색">
+    <button id="ttBtn2">🗓 시간표</button>
+  </div>
+  <div class="lib-body" id="libBody" data-view="courses">
+    <nav class="lib-col" id="libCourses"></nav>
+    <section class="lib-col" id="libList"></section>
+    <article class="lib-col md" id="libDetail"></article>
+  </div>
+</div>
+
+<div class="modal-bg" id="ttModal">
+  <div class="modal wide" role="dialog" aria-labelledby="ttTitle">
+    <h3 id="ttTitle">🗓 시간표</h3>
+    <p>시간표에 있는 시간(앞뒤 10분 포함)에 녹음을 시작하면 그 수업으로 자동 분류돼요. 다른 수업 노트가 열려 있으면 새 강의를 자동으로 만들어요.</p>
+    <div class="tt-head"><span>수업 이름</span><span>요일</span><span>시작</span><span>끝</span><span></span></div>
+    <div id="ttRows"></div>
+    <button id="ttAdd" class="attach">+ 수업 시간 추가</button>
+    <div class="tt-grid" id="ttGrid"></div>
+    <div class="row">
+      <button id="ttClose">닫기</button>
+      <button id="ttSave" class="primary">저장</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="settingsModal">
   <div class="modal" role="dialog" aria-labelledby="setTitle">
     <h3 id="setTitle">AI 설정</h3>
@@ -230,7 +316,7 @@
   }
   let lectures = new Map();       // id -> lecture
   let state = blankLecture();     // current lecture
-  let settings = { apiKey:'', model:'claude-sonnet-5-5', lang:'ko-KR', interval:'120' };
+  let settings = { apiKey:'', model:'claude-sonnet-5-5', lang:'ko-KR', interval:'120', timetable:[] };
   let mode = 'pending';           // 'claude' | 'web'
   let speech = null, ai = null;   // engines
   let listening = false, partial = '';
@@ -397,7 +483,8 @@
     $('course').value = state.course; $('topic').value = state.topic;
     if(editing){ editing = false; $('notesEdit').style.display='none'; $('notesWrap').style.display='block'; $('editBtn').textContent='편집'; }
     partial = ''; $('noteStatus').textContent = '';
-    renderLectureList(); renderTranscript(); renderNotes(); renderChips(loadingNames); updateButtons();
+    renderLectureList(); renderTranscript(); renderNotes(); renderChips(loadingNames); updateButtons(); renderCourseList(); renderSlotHint();
+    if(!$('library').hidden) renderLibrary();
   }
   async function switchLecture(id){
     if(id === state.id || !lectures.has(id)) return;
@@ -859,6 +946,7 @@ ${mat ? `### 자료에만 있는 내용
       speech.stop().catch(()=>{}).then(()=>{ if(pendingText() && ai) organize(false); });
       return;
     }
+    autoAssignForRecording();
     speech.start().catch(err=>{
       const code = err && (err.code || err.message);
       if(code === 'not_granted'){ micDenied(); }
@@ -930,8 +1018,9 @@ ${mat ? `### 자료에만 있는 내용
   $('newLecBtn').addEventListener('click', async ()=>{
     // 아무것도 안 적힌 강의가 이미 있으면 그걸 씀
     const empty = [...lectures.values()].find(l => !l.notes && !l.segments.length && !l.materials.length && !l.important.length && l.id !== state.id);
-    const L = empty || blankLecture(state.course);
-    if(empty){ L.course = state.course; L.createdAt = Date.now(); }
+    const slot = slotAt();
+    const L = empty || blankLecture(slot ? slot.course : state.course);
+    if(empty){ L.course = slot ? slot.course : state.course; L.createdAt = Date.now(); }
     lectures.set(L.id, L); saveLec(L);
     if(state.id !== L.id && !state.notes && !state.segments.length && !state.materials.length && !state.important.length && !state.topic){
       lectures.delete(state.id); DB.del(state.id).catch(()=>{});
@@ -1002,9 +1091,7 @@ ${mat ? `### 자료에만 있는 내용
 
   $('copyBtn').addEventListener('click', ()=>{
     if(!state.notes.trim() && !state.important.length){ toast('아직 복사할 노트가 없어'); return; }
-    const head = state.course ? '# '+state.course+(state.topic?' — '+state.topic:'')+` (${mdDate(state.createdAt)})\n\n` : '';
-    const imp = state.important.length ? '## 📌 중요\n' + state.important.map(i=>`- **[${i.type}]** ${i.text}`).join('\n') + '\n\n' : '';
-    const text = head + imp + state.notes;
+    const text = noteText(state);
     navigator.clipboard.writeText(text).then(()=>toast('노트를 복사했어 (마크다운)'))
       .catch(()=>{
         if(!editing) $('editBtn').click();
@@ -1013,8 +1100,246 @@ ${mat ? `### 자료에만 있는 내용
       });
   });
 
+
+  // ---------- 시간표 ----------
+  const DAYS = ['일','월','화','수','목','금','토'];
+  const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t||''); return m ? (+m[1])*60 + (+m[2]) : null; };
+  const normCourse = c => (c||'').replace(/\s+/g,'').toLowerCase();
+  const sameDay = (a,b) => { const x=new Date(a), y=new Date(b); return x.getFullYear()===y.getFullYear() && x.getMonth()===y.getMonth() && x.getDate()===y.getDate(); };
+  const isEmptyLecture = l => !l.notes && !l.segments.length && !l.materials.length && !l.important.length;
+  function slotAt(date){
+    date = date || new Date();
+    const d = date.getDay(), m = date.getHours()*60 + date.getMinutes();
+    const tt = settings.timetable || [];
+    return tt.find(r => r.course && +r.day === d && toMin(r.start)!=null && toMin(r.end)!=null && m >= toMin(r.start)-10 && m <= toMin(r.end)+10) || null;
+  }
+  function autoAssignForRecording(){
+    const slot = slotAt(); if(!slot) return;
+    const now = Date.now();
+    if(isEmptyLecture(state)){
+      if(normCourse(state.course) !== normCourse(slot.course)){ state.course = slot.course; $('course').value = slot.course; save(); renderLectureList(); toast(`🗓 시간표에 따라 '${slot.course}' 강의로 녹음할게`); }
+      return;
+    }
+    if(normCourse(state.course) === normCourse(slot.course) && sameDay(state.createdAt, now)) return; // 같은 수업, 같은 날 → 이어서
+    if(!state.course && sameDay(state.createdAt, now)){ state.course = slot.course; $('course').value = slot.course; save(); renderLectureList(); toast(`🗓 이 강의를 '${slot.course}'로 분류했어`); return; }
+    // 다른 수업이거나 다른 날 노트가 열려 있으면 새 강의를 만들어서 녹음
+    const L = blankLecture(slot.course);
+    lectures.set(L.id, L); saveLec(L);
+    state = L; setCurrent(L.id); lastRun = Date.now();
+    renderAll();
+    toast(`🗓 '${slot.course}' 새 강의를 만들어서 녹음할게`);
+  }
+  function renderSlotHint(){
+    const slot = slotAt();
+    $('slotHint').textContent = slot ? `🗓 지금 ${slot.course} 시간` : '';
+  }
+  function courseNames(){
+    const seen = new Map();
+    (settings.timetable||[]).forEach(r => { if(r.course) seen.set(normCourse(r.course), r.course.trim()); });
+    lectures.forEach(l => { const c=(l.course||'').trim(); if(c && !seen.has(normCourse(c))) seen.set(normCourse(c), c); });
+    return [...seen.values()];
+  }
+  function renderCourseList(){
+    const dl = $('courseList'); dl.textContent='';
+    courseNames().forEach(c => { const o=document.createElement('option'); o.value=c; dl.appendChild(o); });
+  }
+  function scheduleText(course){
+    return (settings.timetable||[]).filter(r => normCourse(r.course)===normCourse(course))
+      .sort((a,b)=>((+a.day+6)%7)-((+b.day+6)%7)).map(r => `${DAYS[r.day]} ${r.start}–${r.end}`).join(', ');
+  }
+
+  let ttDraft = [];
+  function ttRow(r){
+    const row = document.createElement('div'); row.className='tt-row';
+    const c = document.createElement('input'); c.placeholder='예: 디자인과 문화'; c.value=r.course||''; c.setAttribute('list','courseList');
+    const d = document.createElement('select'); [1,2,3,4,5,6,0].forEach(i=>{ const o=document.createElement('option'); o.value=i; o.textContent=DAYS[i]; d.appendChild(o); }); d.value = String(r.day ?? 1);
+    const st = document.createElement('input'); st.type='time'; st.value=r.start||'09:00';
+    const en = document.createElement('input'); en.type='time'; en.value=r.end||'10:15';
+    const x = document.createElement('button'); x.textContent='×'; x.title='삭제';
+    c.oninput=()=>{ r.course=c.value; renderTtGrid(); }; d.onchange=()=>{ r.day=+d.value; renderTtGrid(); };
+    st.onchange=()=>{ r.start=st.value; renderTtGrid(); }; en.onchange=()=>{ r.end=en.value; renderTtGrid(); };
+    x.onclick=()=>{ ttDraft = ttDraft.filter(o=>o!==r); renderTt(); };
+    row.append(c,d,st,en,x); return row;
+  }
+  function renderTt(){
+    const box = $('ttRows'); box.textContent='';
+    ttDraft.forEach(r => box.appendChild(ttRow(r)));
+    renderTtGrid();
+  }
+  function renderTtGrid(){
+    const g = $('ttGrid'); g.textContent='';
+    const days = [1,2,3,4,5,6];
+    days.forEach(d=>{ const h=document.createElement('div'); h.className='day'; h.textContent=DAYS[d]; g.appendChild(h); });
+    const cols = days.map(d => ttDraft.filter(r=>+r.day===d && r.course).sort((a,b)=>toMin(a.start)-toMin(b.start)));
+    const rows = Math.max(0, ...cols.map(c=>c.length));
+    for(let i=0;i<rows;i++) cols.forEach(c=>{ const cell=document.createElement('div'); if(c[i]){ cell.className='cell'; cell.textContent=`${c[i].course}\n${c[i].start}–${c[i].end}`; cell.style.whiteSpace='pre-line'; } g.appendChild(cell); });
+  }
+  function openTimetable(){
+    ttDraft = (settings.timetable||[]).map(r=>Object.assign({}, r));
+    if(!ttDraft.length) ttDraft.push({course: state.course||'', day: new Date().getDay()||1, start:'09:00', end:'10:15'});
+    renderTt(); $('ttModal').classList.add('show');
+  }
+  $('ttBtn').addEventListener('click', openTimetable);
+  $('ttBtn2').addEventListener('click', openTimetable);
+  $('ttAdd').addEventListener('click', ()=>{ const last = ttDraft[ttDraft.length-1]; ttDraft.push({course: last?last.course:'', day: last?last.day:1, start: last?last.start:'09:00', end: last?last.end:'10:15'}); renderTt(); const ins=$('ttRows').querySelectorAll('input:not([type])'); if(ins.length) ins[ins.length-1].focus(); });
+  $('ttClose').addEventListener('click', ()=>$('ttModal').classList.remove('show'));
+  $('ttModal').addEventListener('click', e=>{ if(e.target.id==='ttModal') $('ttModal').classList.remove('show'); });
+  $('ttSave').addEventListener('click', ()=>{
+    const bad = ttDraft.find(r => r.course.trim() && toMin(r.end) <= toMin(r.start));
+    if(bad){ toast(`'${bad.course}' 끝나는 시간이 시작보다 빨라`); return; }
+    settings.timetable = ttDraft.filter(r=>r.course && r.course.trim()).map(r=>({course:r.course.trim(), day:+r.day, start:r.start, end:r.end}));
+    saveSettings(); $('ttModal').classList.remove('show');
+    renderCourseList(); renderSlotHint();
+    if(!$('library').hidden) renderLibrary();
+    const slot = slotAt();
+    toast(slot ? `저장했어. 지금은 '${slot.course}' 시간이야` : `시간표 저장 완료 (${settings.timetable.length}개)`);
+  });
+
+  // ---------- 📚 노트함 ----------
+  const lib = { course: null, lecture: null, q: '' };
+  const NONE = '__none__';
+  const courseKey = l => normCourse(l.course) || NONE;
+  const fullDate = t => { const d=new Date(t); return `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()} (${DAYS[d.getDay()]})`; };
+  function libLectures(){
+    const q = lib.q.trim().toLowerCase();
+    return [...lectures.values()].filter(l => !isEmptyLecture(l) || l.topic)
+      .filter(l => !q || (l.topic+' '+l.course+' '+l.notes+' '+l.important.map(i=>i.text).join(' ')).toLowerCase().includes(q));
+  }
+  function libCourses(){
+    const map = new Map();
+    courseNames().forEach(c => map.set(normCourse(c), {key:normCourse(c), name:c, lectures:[]}));
+    libLectures().forEach(l => {
+      const k = courseKey(l);
+      if(!map.has(k)) map.set(k, {key:k, name: k===NONE ? '수업 미지정' : l.course.trim(), lectures:[]});
+      map.get(k).lectures.push(l);
+    });
+    const list = [...map.values()];
+    if(lib.q) return list.filter(c=>c.lectures.length);
+    // 최근에 들은 수업이 위로
+    return list.sort((a,b)=> (Math.max(0,...b.lectures.map(l=>l.createdAt)) - Math.max(0,...a.lectures.map(l=>l.createdAt))) || a.name.localeCompare(b.name));
+  }
+  function openLibrary(){
+    if(editing) $('editBtn').click();
+    $('library').hidden = false;
+    if(location.hash !== '#library') history.replaceState(null,'','#library');
+    if(!lib.course) lib.course = courseKey(state);
+    setView('courses');
+    renderLibrary();
+  }
+  function closeLibrary(fromHash){
+    $('library').hidden = true;
+    if(!fromHash && location.hash === '#library') history.replaceState(null,'',location.pathname + location.search);
+  }
+  $('libBtn').addEventListener('click', openLibrary);
+  $('libClose').addEventListener('click', ()=>closeLibrary());
+  $('libSearch').addEventListener('input', e=>{ lib.q = e.target.value; renderLibrary(); });
+  function setView(v){ $('libBody').dataset.view = v; }
+
+  function renderLibrary(){
+    const courses = libCourses();
+    if(lib.course && !courses.find(c=>c.key===lib.course)) lib.course = courses[0] ? courses[0].key : null;
+    if(!lib.course && courses[0]) lib.course = courses[0].key;
+    // 수업 목록
+    const nav = $('libCourses'); nav.textContent='';
+    const h = document.createElement('div'); h.className='lib-h'; h.textContent = `수업 ${courses.length}개`; nav.appendChild(h);
+    if(!courses.length){ const e=document.createElement('div'); e.className='lib-empty'; e.textContent = lib.q ? '검색 결과가 없어요' : '아직 저장된 강의가 없어요. 🗓 시간표를 넣어두면 수업별로 자동 분류돼요.'; nav.appendChild(e); }
+    courses.forEach(c => {
+      const b = document.createElement('button'); b.className = 'course-item' + (c.key===lib.course?' active':'');
+      const name = document.createElement('b'); name.textContent = c.name;
+      const urgent = c.lectures.reduce((n,l)=>n + l.important.filter(i=>i.type==='시험'||i.type==='과제').length, 0);
+      if(urgent){ const bd=document.createElement('span'); bd.className='badge'; bd.textContent=urgent; bd.title='시험·과제 항목'; name.appendChild(bd); }
+      const sm = document.createElement('small'); const sch = scheduleText(c.name);
+      sm.textContent = `강의 ${c.lectures.length}개${sch ? ' · '+sch : ''}`;
+      b.append(name, sm);
+      b.onclick = () => { lib.course = c.key; lib.lecture = null; renderLibrary(); setView('list'); };
+      nav.appendChild(b);
+    });
+    // 강의 목록 + 수업 전체 중요 항목
+    const listEl = $('libList'); listEl.textContent='';
+    const cur = courses.find(c=>c.key===lib.course);
+    const back1 = document.createElement('button'); back1.className='mob-back'; back1.textContent='← 수업 목록'; back1.onclick=()=>setView('courses'); listEl.appendChild(back1);
+    if(cur){
+      const lecs = cur.lectures.slice().sort((a,b)=>b.createdAt-a.createdAt);
+      const allImp = [];
+      lecs.forEach(l => l.important.forEach(i => allImp.push({...i, lec:l})));
+      if(allImp.length){
+        allImp.sort((a,b)=>TYPES.indexOf(a.type)-TYPES.indexOf(b.type) || b.lec.createdAt-a.lec.createdAt);
+        const wrap = document.createElement('div'); wrap.className='course-imp';
+        const box = document.createElement('div'); box.className='important';
+        const h4 = document.createElement('h4'); h4.textContent = `📌 ${cur.name} 중요 항목 모음`; box.appendChild(h4);
+        const ul = document.createElement('ul');
+        allImp.forEach(i => {
+          const li=document.createElement('li');
+          const tag=document.createElement('span'); tag.className='tag '+i.type; tag.textContent=i.type;
+          const tx=document.createElement('span'); tx.className='txt'; tx.textContent=i.text;
+          const sm=document.createElement('small'); sm.textContent=mdDate(i.lec.createdAt); tx.appendChild(sm);
+          li.append(tag,tx); li.style.cursor='pointer'; li.onclick=()=>{ lib.lecture=i.lec.id; renderLibrary(); setView('detail'); };
+          ul.appendChild(li);
+        });
+        box.appendChild(ul); wrap.appendChild(box); listEl.appendChild(wrap);
+      }
+      const h2 = document.createElement('div'); h2.className='lib-h'; h2.textContent = `${cur.name} · 강의 ${lecs.length}개`; listEl.appendChild(h2);
+      if(!lecs.length){ const e=document.createElement('div'); e.className='lib-empty'; e.textContent='이 수업으로 저장된 강의가 아직 없어요.'; listEl.appendChild(e); }
+      if(!lib.lecture || !lecs.find(l=>l.id===lib.lecture)) lib.lecture = lecs[0] ? lecs[0].id : null;
+      lecs.forEach(l => {
+        const b = document.createElement('button'); b.className='lec-card' + (l.id===lib.lecture?' active':'');
+        const d = document.createElement('div'); d.className='d'; d.textContent = fullDate(l.createdAt) + (l.id===state.id ? ' · 지금 열린 강의' : '');
+        const t = document.createElement('div'); t.className='t'; t.textContent = (l.topic || '주제 없음') + (l.important.length ? `  📌${l.important.length}` : '');
+        const p = document.createElement('div'); p.className='p';
+        p.textContent = (l.notes || l.segments.join(' ')).replace(/[#*>|`-]/g,' ').replace(/\s+/g,' ').trim().slice(0,140) || '아직 정리된 내용 없음';
+        b.append(d,t,p);
+        b.onclick = () => { lib.lecture = l.id; renderLibrary(); setView('detail'); };
+        listEl.appendChild(b);
+      });
+    } else lib.lecture = null;
+    renderLibDetail();
+  }
+  function renderLibDetail(){
+    const el = $('libDetail'); el.textContent='';
+    const back = document.createElement('button'); back.className='mob-back'; back.textContent='← 강의 목록'; back.onclick=()=>setView('list'); el.appendChild(back);
+    const L = lib.lecture && lectures.get(lib.lecture);
+    if(!L){ const e=document.createElement('div'); e.className='lib-empty'; e.textContent='왼쪽에서 강의를 골라주세요.'; el.appendChild(e); return; }
+    const head = document.createElement('div'); head.className='det-head';
+    const h3 = document.createElement('h3'); h3.textContent = L.topic || '주제 없음';
+    const meta = document.createElement('span'); meta.className='meta'; meta.textContent = fullDate(L.createdAt) + ' · 수업:';
+    const mv = document.createElement('input'); mv.value = L.course||''; mv.placeholder='수업 미지정'; mv.setAttribute('list','courseList'); mv.title='수업을 바꾸면 그 수업으로 옮겨져요';
+    mv.onchange = () => { L.course = mv.value.trim(); saveLec(L); if(L===state) $('course').value = L.course; lib.course = courseKey(L); renderLectureList(); renderCourseList(); renderLibrary(); toast(L.course ? `'${L.course}'(으)로 옮겼어` : '수업 미지정으로 옮겼어'); };
+    const open = document.createElement('button'); open.className='primary'; open.textContent = L.id===state.id ? '노트 화면으로' : '이 강의 열기';
+    open.onclick = async () => { await switchLecture(L.id); closeLibrary(); };
+    const copy = document.createElement('button'); copy.textContent='노트 복사';
+    copy.onclick = () => navigator.clipboard.writeText(noteText(L)).then(()=>toast('노트를 복사했어 (마크다운)')).catch(()=>toast('복사가 막혔어. 강의를 열어서 편집 화면에서 복사해줘'));
+    head.append(h3, meta, mv, open, copy); el.appendChild(head);
+    if(L.materials.length){ const m=document.createElement('div'); m.className='meta'; m.style.cssText='font-size:13px;color:var(--muted);margin-top:4px'; m.textContent='📎 '+L.materials.map(x=>x.name).join(', '); el.appendChild(m); }
+    if(L.important.length){
+      const box=document.createElement('div'); box.className='important show';
+      const h4=document.createElement('h4'); h4.textContent='📌 중요 — 시험 · 과제 · 공지'; box.appendChild(h4);
+      const ul=document.createElement('ul');
+      L.important.forEach(i=>{ const li=document.createElement('li'); const tag=document.createElement('span'); tag.className='tag '+i.type; tag.textContent=i.type; const tx=document.createElement('span'); tx.className='txt'; tx.textContent=i.text; li.append(tag,tx); ul.appendChild(li); });
+      box.appendChild(ul); el.appendChild(box);
+    }
+    const body = document.createElement('div');
+    if(L.notes.trim()) body.innerHTML = mdToHtml(L.notes);
+    else { body.className='lib-empty'; body.textContent = L.segments.length ? '아직 AI 정리 전이에요. 강의를 열어서 지금 정리를 눌러주세요.' : '아직 내용이 없어요.'; }
+    el.appendChild(body);
+  }
+  function noteText(L){
+    const head = (L.course ? '# '+L.course+(L.topic?' — '+L.topic:'') : '# '+(L.topic||'강의 노트')) + ` (${mdDate(L.createdAt)})\n\n`;
+    const imp = L.important.length ? '## 📌 중요\n' + L.important.map(i=>`- **[${i.type}]** ${i.text}`).join('\n') + '\n\n' : '';
+    return head + imp + L.notes;
+  }
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if($('ttModal').classList.contains('show')) $('ttModal').classList.remove('show'); else if(!$('library').hidden) closeLibrary(); } });
+
+  // ---------- start ----------
   renderAll();
-  loadAll().then(renderAll);
+  loadAll().then(()=>{
+    // 앱을 수업 시간에 열었고 지금 강의가 비어 있으면 그 수업으로 지정
+    const slot = slotAt();
+    if(slot && isEmptyLecture(state) && !state.course){ state.course = slot.course; save(); }
+    renderAll();
+    if(location.hash === '#library') openLibrary();
+  });
+  setInterval(renderSlotHint, 30000);
+  window.addEventListener('hashchange', ()=>{ if(location.hash === '#library') openLibrary(); else if(!$('library').hidden) closeLibrary(true); });
 
   // ---------- pick mode ----------
   function webMode(){
