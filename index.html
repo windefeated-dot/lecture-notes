@@ -87,11 +87,35 @@
   .modal input,.modal select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fff}
   .modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
   .modal a{color:var(--accent)}
+  .lectures{display:flex;gap:6px;align-items:center;flex:1 1 100%;order:3}
+  .lectures select{flex:1;min-width:0;max-width:420px;font-weight:500}
+  .lectures button{padding:7px 11px}
+  #lecCount{font-size:12px;color:var(--muted);white-space:nowrap}
+  .important{margin:14px 0 6px;border:1.5px solid #f0b4a9;background:#fff6f3;border-radius:12px;padding:10px 14px 8px;display:none}
+  .important.show{display:block}
+  .important h4{margin:0 0 6px;font-size:14px;color:#a3321f;display:flex;align-items:center;gap:6px}
+  .important ul{list-style:none;margin:0;padding:0}
+  .important li{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px dashed #f3d2ca;font-size:14.5px}
+  .important li:first-child{border-top:0}
+  .important li .txt{flex:1}
+  .important li button{border:0;background:transparent;padding:0 4px;color:var(--muted);font-size:15px;line-height:1.4}
+  .tag{flex:none;font-size:11.5px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap}
+  .tag.시험{background:#d9413a;color:#fff}
+  .tag.과제{background:#e8862a;color:#fff}
+  .tag.공지{background:#3b4cca;color:#fff}
+  .tag.강조{background:#7a4cc4;color:#fff}
+  .imp-add{display:none;gap:6px;margin-top:8px}
+  .imp-add.show{display:flex}
+  .imp-add select,.imp-add input{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .imp-add input{flex:1;min-width:0}
+  .imp-add button{padding:5px 10px;font-size:13px}
   @media (max-width:760px){
     main{grid-template-columns:1fr;grid-template-rows:minmax(220px,38vh) minmax(320px,1fr)}
     header,.toolbar,.materials{padding-left:12px;padding-right:12px}
     main{padding:0 12px 12px}
     .toolbar .spacer{display:none}
+    #lecCount{display:none}
+    .lectures select{max-width:none}
   }
 </style>
 </head>
@@ -100,6 +124,12 @@
   <div class="brand"><span class="dot" id="recDot"></span>실시간 강의 노트</div>
   <input id="course" placeholder="수업 이름 (예: 디자인과 문화)">
   <input id="topic" placeholder="오늘 주제 (선택, 예: 아르누보와 가우디)">
+  <div class="lectures">
+    <select id="lectureSel" title="저장된 강의"></select>
+    <span id="lecCount"></span>
+    <button id="newLecBtn" class="primary" style="background:#22211f;border-color:#22211f">+ 새 강의</button>
+    <button id="delLecBtn" class="ghost" title="이 강의 삭제">🗑</button>
+  </div>
 </header>
 <div class="toolbar">
   <button id="micBtn" class="primary" disabled>🎙 듣기 시작</button>
@@ -122,7 +152,6 @@
   <button id="organizeBtn" disabled>지금 정리</button>
   <button id="finalBtn" disabled>수업 끝 · 최종 정리</button>
   <button id="copyBtn">노트 복사</button>
-  <button id="newBtn" class="ghost">새 수업</button>
   <button id="settingsBtn" class="ghost webonly" title="설정">⚙ 설정</button>
 </div>
 <div class="materials" id="materials">
@@ -142,9 +171,20 @@
     </div>
   </section>
   <section class="panel">
-    <h2>정리 노트 <small id="noteStatus"></small><span class="spacer"></span><button id="editBtn">편집</button></h2>
+    <h2>정리 노트 <small id="noteStatus"></small><span class="spacer"></span><button id="pinBtn" title="중요 항목 직접 추가">📌 추가</button><button id="editBtn">편집</button></h2>
     <div class="working" id="working"><span class="spin"></span><span id="workingText">정리 중…</span></div>
-    <div id="notesWrap"><article id="notes" class="md"></article></div>
+    <div id="notesWrap">
+      <div class="important" id="important">
+        <h4>📌 중요 — 시험 · 과제 · 공지</h4>
+        <ul id="impList"></ul>
+        <div class="imp-add" id="impAdd">
+          <select id="impType"><option>시험</option><option>과제</option><option>공지</option><option>강조</option></select>
+          <input id="impText" placeholder="예: 중간고사 범위 1~5장 (10/23)">
+          <button id="impSave">추가</button>
+        </div>
+      </div>
+      <article id="notes" class="md"></article>
+    </div>
     <textarea id="notesEdit" spellcheck="false"></textarea>
   </section>
 </main>
@@ -174,30 +214,89 @@
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const KEY = 'lecture-notes-v1';
+  const OLD_KEY = 'lecture-notes-v1';
   const SKEY = 'lecture-notes-settings';
-  let state = { course:'', topic:'', segments:[], processed:0, notes:'', materials:[], lastPage:-1 };
+  const CUR_KEY = 'lecture-notes-current';
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  function blankLecture(course){
+    const t = Date.now();
+    return { id:newId(), createdAt:t, updatedAt:t, course:course||'', topic:'', segments:[], processed:0, notes:'', materials:[], lastPage:-1, important:[] };
+  }
+  function normalize(l){
+    return Object.assign(blankLecture(), l, {
+      segments: Array.isArray(l.segments)?l.segments:[], materials: Array.isArray(l.materials)?l.materials:[],
+      important: Array.isArray(l.important)?l.important:[]
+    });
+  }
+  let lectures = new Map();       // id -> lecture
+  let state = blankLecture();     // current lecture
   let settings = { apiKey:'', model:'claude-sonnet-5-5', lang:'ko-KR', interval:'120' };
   let mode = 'pending';           // 'claude' | 'web'
   let speech = null, ai = null;   // engines
   let listening = false, partial = '';
   let busy = false, backoffUntil = 0, lastRun = Date.now(), editing = false;
 
-  // ---------- storage (best effort) ----------
-  function load(){
-    try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s && typeof s==='object') state = Object.assign(state, s); }catch(e){}
-    try{ const s = JSON.parse(localStorage.getItem(SKEY)||'null'); if(s && typeof s==='object') settings = Object.assign(settings, s); }catch(e){}
-    if(!Array.isArray(state.materials)) state.materials = [];
-  }
-  let warnedSize = false;
-  function save(){
-    try{ localStorage.setItem(KEY, JSON.stringify(state)); }
-    catch(e){
-      if(!warnedSize && state.materials.length){ warnedSize = true; toast('강의자료가 커서 저장 공간이 부족해. 새로고침하면 자료를 다시 첨부해야 할 수 있어'); }
-      try{ localStorage.setItem(KEY, JSON.stringify(Object.assign({}, state, {materials:[]}))); }catch(_){}
+  // ---------- storage: IndexedDB per lecture (falls back to memory) ----------
+  const DB = (() => {
+    let dbp = null;
+    function open(){
+      if(dbp) return dbp;
+      dbp = new Promise((res, rej) => {
+        try{
+          const r = indexedDB.open('lecture-notes', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('lectures', {keyPath:'id'});
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => rej(r.error);
+        }catch(e){ rej(e); }
+      });
+      return dbp;
     }
+    function tx(mode, fn){
+      return open().then(db => new Promise((res, rej) => {
+        const t = db.transaction('lectures', mode); const req = fn(t.objectStore('lectures'));
+        t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+      }));
+    }
+    return { all: () => tx('readonly', s => s.getAll()), put: o => tx('readwrite', s => s.put(o)), del: id => tx('readwrite', s => s.delete(id)) };
+  })();
+  let dbOk = true;
+  const saveTimers = {};
+  function saveLec(L){
+    L = L || state;
+    L.updatedAt = Date.now();
+    clearTimeout(saveTimers[L.id]);
+    saveTimers[L.id] = setTimeout(() => {
+      if(!dbOk) return;
+      DB.put(JSON.parse(JSON.stringify(L))).catch(e => {
+        if(e && e.name === 'QuotaExceededError') toast('저장 공간이 부족해. 안 쓰는 강의를 지워줘');
+        else { dbOk = false; notice('이 브라우저에서는 저장이 안 돼서 새로고침하면 사라져. 노트 복사로 따로 챙겨줘.'); }
+      });
+    }, 400);
   }
+  const save = () => saveLec(state);
   function saveSettings(){ try{ localStorage.setItem(SKEY, JSON.stringify(settings)); }catch(e){} }
+  function setCurrent(id){ try{ localStorage.setItem(CUR_KEY, id); }catch(e){} }
+
+  async function loadAll(){
+    try{ const s = JSON.parse(localStorage.getItem(SKEY)||'null'); if(s && typeof s==='object') settings = Object.assign(settings, s); }catch(e){}
+    let list = [];
+    try{ list = (await DB.all()) || []; }catch(e){ dbOk = false; }
+    list.forEach(l => lectures.set(l.id, normalize(l)));
+    // 이전 버전(한 개만 저장하던 방식) 데이터 옮기기
+    try{
+      const old = JSON.parse(localStorage.getItem(OLD_KEY)||'null');
+      if(old && (old.notes || (old.segments && old.segments.length))){
+        const L = normalize(Object.assign(blankLecture(), old, {id:newId()}));
+        lectures.set(L.id, L); saveLec(L); setCurrent(L.id);
+      }
+      if(old && dbOk) localStorage.removeItem(OLD_KEY);
+    }catch(e){}
+    let cur = null; try{ cur = localStorage.getItem(CUR_KEY); }catch(e){}
+    if(cur && lectures.has(cur)) state = lectures.get(cur);
+    else if(lectures.size) state = [...lectures.values()].sort((a,b)=>b.updatedAt-a.updatedAt)[0];
+    else { state = blankLecture(); lectures.set(state.id, state); }
+    setCurrent(state.id);
+  }
 
   // ---------- ui helpers ----------
   let toastT;
@@ -238,6 +337,73 @@
     if(!state.notes.trim()){
       el.innerHTML = '<p class="notes-empty" style="margin-top:16px">아직 정리된 내용이 없어요. 받아쓰기가 쌓이면 자동으로 정리되고, <b>지금 정리</b>를 눌러 바로 정리할 수도 있어요. 강의자료를 첨부하면 용어와 맥락을 자료에 맞춰 정리해요.</p>';
     } else el.innerHTML = mdToHtml(state.notes);
+    renderImportant();
+  }
+
+  // ---------- 중요 항목 (시험·과제·공지·강조) ----------
+  const TYPES = ['시험','과제','공지','강조'];
+  function renderImportant(){
+    const box = $('important'), ul = $('impList');
+    const items = state.important || [];
+    ul.textContent = '';
+    items.forEach((it, i) => {
+      const li = document.createElement('li');
+      const tag = document.createElement('span'); tag.className = 'tag ' + it.type; tag.textContent = it.type;
+      const tx = document.createElement('span'); tx.className = 'txt'; tx.textContent = it.text;
+      const x = document.createElement('button'); x.textContent = '×'; x.title = '삭제';
+      x.onclick = () => { state.important.splice(i,1); save(); renderImportant(); };
+      li.append(tag, tx, x); ul.appendChild(li);
+    });
+    box.classList.toggle('show', items.length > 0 || $('impAdd').classList.contains('show'));
+  }
+  const normText = s => s.replace(/\s+/g,'').toLowerCase();
+  function addImportant(L, items){
+    let added = 0;
+    for(const it of items){
+      if(!TYPES.includes(it.type) || !it.text) continue;
+      const n = normText(it.text);
+      if(L.important.some(o => normText(o.text) === n)) continue;
+      L.important.push({type:it.type, text:it.text, at:Date.now()});
+      added++;
+    }
+    // 시험 → 과제 → 공지 → 강조 순으로 정렬
+    L.important.sort((a,b) => TYPES.indexOf(a.type) - TYPES.indexOf(b.type) || a.at - b.at);
+    return added;
+  }
+
+  // ---------- 강의 목록 ----------
+  const mdDate = t => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()}`; };
+  function lectureLabel(l){
+    const imp = (l.important||[]).filter(x=>x.type==='시험'||x.type==='과제').length;
+    return `${mdDate(l.createdAt)} · ${l.topic || (l.notes||l.segments.length ? '주제 없음' : '새 강의')}${imp ? '  📌'+imp : ''}`;
+  }
+  function renderLectureList(){
+    const sel = $('lectureSel'); sel.textContent = '';
+    const groups = new Map();
+    [...lectures.values()].sort((a,b)=>b.createdAt-a.createdAt).forEach(l => {
+      const k = (l.course||'').trim() || '수업 이름 없음';
+      if(!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(l);
+    });
+    groups.forEach((ls, course) => {
+      const og = document.createElement('optgroup'); og.label = `${course} (${ls.length})`;
+      ls.forEach(l => { const o = document.createElement('option'); o.value = l.id; o.textContent = lectureLabel(l); og.appendChild(o); });
+      sel.appendChild(og);
+    });
+    sel.value = state.id;
+    $('lecCount').textContent = `저장된 강의 ${lectures.size}개`;
+  }
+  function renderAll(){
+    $('course').value = state.course; $('topic').value = state.topic;
+    if(editing){ editing = false; $('notesEdit').style.display='none'; $('notesWrap').style.display='block'; $('editBtn').textContent='편집'; }
+    partial = ''; $('noteStatus').textContent = '';
+    renderLectureList(); renderTranscript(); renderNotes(); renderChips(loadingNames); updateButtons();
+  }
+  async function switchLecture(id){
+    if(id === state.id || !lectures.has(id)) return;
+    if(listening && speech){ await speech.stop().catch(()=>{}); }
+    state = lectures.get(id); setCurrent(id); lastRun = Date.now();
+    renderAll();
   }
 
   function updateButtons(){
@@ -365,6 +531,7 @@
   }
   let loadingNames = [];
   async function addFiles(files){
+    const L = state;
     for(const file of Array.from(files)){
       if(file.size > 60*1024*1024){ toast(file.name + ': 파일이 너무 커 (60MB 이하)'); continue; }
       loadingNames.push(file.name); renderChips(loadingNames);
@@ -373,9 +540,9 @@
         const nonEmpty = pages.filter(p=>p.length>0).length;
         if(!nonEmpty){ toast(file.name + ': 글자를 못 찾았어 (스캔 이미지 PDF일 수 있어)'); }
         else {
-          state.materials = state.materials.filter(m=>m.name!==file.name);
-          state.materials.push({name:file.name, pages});
-          save();
+          L.materials = L.materials.filter(m=>m.name!==file.name);
+          L.materials.push({name:file.name, pages});
+          saveLec(L);
           toast(`${file.name} 첨부 완료 (${pages.length}${unit(file.name)})`);
         }
       }catch(e){ toast(file.name + ': ' + (e.message||'읽지 못했어')); }
@@ -395,13 +562,13 @@
     }
     return set;
   }
-  function allPages(){
+  function allPages(L){
     const out=[];
-    state.materials.forEach(m=>m.pages.forEach((t,i)=>{ if(t) out.push({label:`${m.name} ${i+1}${unit(m.name)}`, text:t, idx:out.length}); }));
+    L.materials.forEach(m=>m.pages.forEach((t,i)=>{ if(t) out.push({label:`${m.name} ${i+1}${unit(m.name)}`, text:t, idx:out.length}); }));
     return out;
   }
-  function relevantMaterial(query, budget, track){
-    const pages = allPages();
+  function relevantMaterial(L, query, budget, track){
+    const pages = allPages(L);
     if(!pages.length) return '';
     const total = pages.reduce((a,p)=>a+p.text.length,0);
     let picked;
@@ -411,7 +578,7 @@
       const scored = pages.map(p=>{
         const g = grams(p.text); let hit=0; g.forEach(x=>{ if(q.has(x)) hit++; });
         let s = g.size ? hit/Math.sqrt(g.size) : 0;
-        if(state.lastPage>=0){ const d = p.idx - state.lastPage; if(d>=0 && d<=3) s *= 1.25; }
+        if(L.lastPage>=0){ const d = p.idx - L.lastPage; if(d>=0 && d<=3) s *= 1.25; }
         return {p, s};
       }).sort((a,b)=>b.s-a.s);
       picked=[]; let used=0;
@@ -420,7 +587,7 @@
         if(used + p.text.length > budget){ if(!picked.length){ picked.push({...p, text:p.text.slice(0,budget)}); } continue; }
         picked.push(p); used += p.text.length;
       }
-      if(track && scored[0] && scored[0].s>0) state.lastPage = scored[0].p.idx;
+      if(track && scored[0] && scored[0].s>0) L.lastPage = scored[0].p.idx;
       picked.sort((a,b)=>a.idx-b.idx);
     }
     return picked.map(p=>`[${p.label}]\n${p.text}`).join('\n\n');
@@ -432,12 +599,15 @@
     const m = t.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n?```$/);
     return m ? m[1].trim() : t;
   }
-  const header = () => `수업: ${state.course||'(이름 없음)'}${state.topic? ' / 오늘 주제: '+state.topic : ''}`;
-  function chunkPrompt(chunk){
-    const tail = state.notes.trim() ? state.notes.slice(-2500) : '(아직 없음 — 이게 첫 정리야)';
-    const mat = relevantMaterial(chunk + ' ' + state.notes.slice(-600), 6000, true);
+  const header = L => `수업: ${L.course||'(이름 없음)'}${L.topic? ' / 오늘 주제: '+L.topic : ''}`;
+  const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} (${'일월화수목금토'[d.getDay()]})`; };
+  function chunkPrompt(L, chunk){
+    const tail = L.notes.trim() ? L.notes.slice(-2500) : '(아직 없음 — 이게 첫 정리야)';
+    const mat = relevantMaterial(L, chunk + ' ' + L.notes.slice(-600), 6000, true);
+    const imp = L.important.length ? L.important.map(i=>`- [${i.type}] ${i.text}`).join('\n') : '(없음)';
     return `너는 대학 강의를 실시간으로 필기해 주는 조교야.
-${header()}
+${header(L)}
+오늘 날짜: ${todayStr()}
 ${mat ? `
 [강의자료에서 지금 내용과 관련 있어 보이는 부분] — 용어 철자 확인과 맥락 파악용 참고자료야.
 ---
@@ -449,36 +619,67 @@ ${mat}
 ${tail}
 ---
 
+[현재 중요 목록] — 이미 노트 맨 위에 고정돼 있는 항목이야.
+---
+${imp}
+---
+
 [새로 받아쓴 강의 내용] — 음성인식 결과라 오타·띄어쓰기 오류·끊긴 문장이 있을 수 있어.
 ---
 ${chunk}
 ---
 
-새 강의 내용만 필기 노트로 정리해서, 기존 노트 바로 뒤에 이어 붙일 마크다운을 출력해.
-규칙:
+할 일 두 가지:
+1) 새 강의 내용만 필기 노트로 정리해서, 기존 노트 바로 뒤에 이어 붙일 마크다운을 써.
+2) 이번 받아쓰기에 '중요 항목'이 새로 나왔으면 뽑아내.
+
+반드시 아래 형식으로만 출력해 (다른 말 없이):
+<notes>
+(필기 마크다운. 정리할 내용이 없으면 비워 둬)
+</notes>
+<important>
+(새 중요 항목을 한 줄에 하나씩 "- [종류] 내용" 형식으로. 없으면 비워 둬)
+</important>
+
+필기 규칙:
 - 이전 노트의 마지막 소제목과 같은 주제가 이어지면 소제목 없이 불릿만 이어서 쓰고, 새 주제로 넘어갔으면 '### 소제목'으로 시작해. 첫 정리라면 '### 소제목'으로 시작해.
 - 음성인식 오류로 보이는 고유명사와 전문 용어는 문맥${mat?'과 강의자료':''}에 맞게 바로잡아. (예: '귀엘공원' → '구엘 공원')
 - "이제", "그", "여러분 아시죠" 같은 군더더기는 빼고 내용만. 짧은 불릿과 하위 불릿으로.
-- 핵심 용어는 **굵게**. 교수님이 강조했거나 시험에 나올 만한 내용은 줄 끝에 ⭐.
+- 핵심 용어는 **굵게**. 시험에 나올 만해 보이는 내용은 줄 끝에 ⭐.
 ${mat ? `- 강의 내용이 자료의 특정 페이지·슬라이드와 연결되면 그 불릿 끝에 (p.N)처럼 짧게 표시해.
 - 자료 내용은 교수님 말을 이해하고 보충하는 데만 써. 교수님이 말하지 않은 자료 내용을 노트에 길게 옮기지 마.
 ` : ''}- 받아쓰기에 없는 내용을 지어내지 마. 보충 설명이 꼭 필요하면 '(참고: …)'로 짧게 구분해.
 - 이전 노트에 이미 있는 내용은 반복하지 마.
 - 강의가 영어로 진행되면 영어 용어는 살리고 설명은 한국어로 써.
 - 끝부분이 문장 중간에 끊겼으면 확실한 데까지만 정리해.
-- 정리할 실질적인 내용이 없으면(잡담, 출석 등) 아무것도 출력하지 마.
-- 마크다운만 출력하고 다른 말은 하지 마.`;
+- 잡담처럼 정리할 내용이 없으면 <notes>는 비워 둬.
+
+중요 항목 기준 (종류는 시험·과제·공지·강조 중 하나):
+- [시험] 시험 날짜·범위·형식·배점, 교수님이 "시험에 낸다/나온다"고 직접 말한 내용
+- [과제] 과제 내용, 분량, 제출 기한, 제출 방법(예: LearnUs)
+- [공지] 휴강·보강·장소 변경·출석·발표 순서 같은 일정·행정 공지
+- [강조] 교수님이 "꼭 기억해라", "중요하다"고 특별히 강조한 개념 (평범한 설명은 넣지 마)
+- 날짜·기한·범위·분량은 들은 그대로 구체적으로 써. "다음 주 화요일"처럼 상대적인 날짜는 그대로 쓰고, 오늘 날짜로 계산한 날짜를 괄호로 덧붙여. 예: "다음 주 화요일(11/24)까지"
+- 한 항목은 한 줄, 그것만 봐도 알 수 있게 짧고 구체적으로. 예: "- [과제] 가우디 건축물 1곳 분석 보고서 A4 2장, 다음 주 화요일(11/24) 수업 전 LearnUs 제출"
+- [현재 중요 목록]에 이미 있는 내용은 다시 쓰지 마. 내용이 바뀌었으면(예: 기한 변경) 바뀐 내용으로 새로 써.
+- 확실하지 않으면 넣지 마. 중요 항목도 노트 본문에는 평소처럼 정리해.`;
   }
-  function finalPrompt(){
-    const mat = relevantMaterial(state.notes, 20000, false);
+  function finalPrompt(L){
+    const mat = relevantMaterial(L, L.notes, 20000, false);
+    const imp = L.important.length ? L.important.map(i=>`- [${i.type}] ${i.text}`).join('\n') : '';
     return `너는 대학 강의 필기를 시험 대비용으로 마무리해 주는 조교야.
-${header()}
+${header(L)}
 
 [오늘 수업 정리 노트 전체]
 ---
-${state.notes.slice(-30000) || '(없음)'}
+${L.notes.slice(-30000) || '(없음)'}
 ---
-${mat ? `
+${imp ? `
+[노트 맨 위에 고정된 중요 항목]
+---
+${imp}
+---
+` : ''}${mat ? `
 [강의자료]
 ---
 ${mat}
@@ -492,13 +693,25 @@ ${mat}
 | 용어 | 뜻 / 맥락 |
 (표로, 5~10개)
 ### 시험 예상 문제
-(서술형·단답형 섞어서 3~5개, 각 문제 아래에 '→ 답 포인트:' 한 줄)
+(서술형·단답형 섞어서 3~5개, 각 문제 아래에 '→ 답 포인트:' 한 줄. 교수님이 시험에 낸다고 한 내용이 있으면 그걸 먼저)
 ${mat ? `### 자료에만 있는 내용
 (강의자료에는 있는데 수업에서 말로 다루지 않은 중요한 내용을 짧게. 없으면 이 소제목은 생략)
 ` : ''}### 확인이 필요한 부분
 (받아쓰기가 불확실했거나 교수님 자료로 확인할 부분. 없으면 이 소제목은 생략)
 
 규칙: 노트${mat?'와 자료':''}에 없는 내용을 지어내지 마. 마크다운만 출력하고 다른 말은 하지 마.`;
+  }
+  function parseChunk(t){
+    t = stripFence(t);
+    const n = t.match(/<notes>([\s\S]*?)(?:<\/notes>|$)/i);
+    const im = t.match(/<important>([\s\S]*?)(?:<\/important>|$)/i);
+    if(!n && !im) return { notes: t, important: [] };
+    const items = [];
+    (im ? im[1] : '').split('\n').forEach(line => {
+      const m = line.match(/^\s*[-*•]?\s*\[(시험|과제|공지|강조)\]\s*(.+?)\s*$/);
+      if(m) items.push({ type: m[1], text: m[2] });
+    });
+    return { notes: n ? stripFence(n[1]) : '', important: items };
   }
 
   // ---------- AI engines ----------
@@ -541,25 +754,38 @@ ${mat ? `### 자료에만 있는 내용
   async function organize(final){
     if(!ai || busy) return;
     if(Date.now() < backoffUntil && !final) return;
-    const upto = state.segments.length;
-    const chunk = pendingText();
+    const L = state;                       // 정리 도중 다른 강의로 바꿔도 원래 강의에 저장
+    const upto = L.segments.length;
+    const chunk = L.segments.slice(L.processed).join(' ');
     if(!final && !chunk) return;
     busy = true; updateButtons();
     $('working').classList.add('show');
     const label = t => { $('workingText').textContent = t; };
     label(final ? '최종 정리 만드는 중…' : '새 내용 정리 중…');
+    let newImp = 0;
+    const applyChunk = text => {
+      const r = parseChunk(text);
+      appendNotes(L, r.notes);
+      newImp += addImportant(L, r.important);
+      L.processed = upto;
+    };
     try{
       if(final && chunk){
-        const r0 = await ai(chunkPrompt(chunk), {final:false, onProgress:n=>label(`남은 내용 정리 중… ${n}자`)});
-        appendNotes(stripFence(r0.text)); state.processed = upto; save(); renderTranscript();
+        const r0 = await ai(chunkPrompt(L, chunk), {final:false, onProgress:n=>label(`남은 내용 정리 중… ${n}자`)});
+        applyChunk(r0.text); saveLec(L); if(L===state) renderTranscript();
       }
-      const res = await ai(final ? finalPrompt() : chunkPrompt(chunk), {final, onProgress:n=>label((final?'최종 정리 작성 중… ':'정리 중… ')+n+'자')});
-      appendNotes(stripFence(res.text));
-      if(!final) state.processed = upto;
-      if(res.truncated) toast('정리가 길어서 일부가 잘렸을 수 있어');
-      save();
-      $('noteStatus').textContent = nowStr() + ' 업데이트';
-      notice('');
+      if(final){
+        const res = await ai(finalPrompt(L), {final:true, onProgress:n=>label('최종 정리 작성 중… '+n+'자')});
+        appendNotes(L, stripFence(res.text));
+        if(res.truncated) toast('정리가 길어서 일부가 잘렸을 수 있어');
+      } else {
+        const res = await ai(chunkPrompt(L, chunk), {final:false, onProgress:n=>label('정리 중… '+n+'자')});
+        applyChunk(res.text);
+        if(res.truncated) toast('정리가 길어서 일부가 잘렸을 수 있어');
+      }
+      saveLec(L);
+      if(L===state){ $('noteStatus').textContent = nowStr() + ' 업데이트'; notice(''); }
+      if(newImp) toast(`📌 중요 항목 ${newImp}개를 노트 맨 위에 고정했어`);
     }catch(e){
       const code = e && e.code;
       if(code === 'not_granted'){ ai = null; notice('AI 정리 권한이 거절돼서 자동 정리가 꺼졌어. 받아쓰기와 직접 메모는 계속 쓸 수 있어.'); }
@@ -571,14 +797,14 @@ ${mat ? `### 자료에만 있는 내용
     }finally{
       busy = false; lastRun = Date.now();
       $('working').classList.remove('show');
-      renderNotes(); renderTranscript(); updateButtons();
+      renderNotes(); renderTranscript(); renderLectureList(); updateButtons();
     }
   }
-  function appendNotes(md){
+  function appendNotes(L, md){
     md = (md||'').trim();
     if(!md) return;
-    state.notes = state.notes.trim() ? state.notes.trimEnd() + '\n\n' + md : md;
-    if(editing) $('notesEdit').value = state.notes;
+    L.notes = L.notes.trim() ? L.notes.trimEnd() + '\n\n' + md : md;
+    if(editing && L===state) $('notesEdit').value = L.notes;
   }
   setInterval(()=>{
     if(!ai || busy) return;
@@ -694,12 +920,55 @@ ${mat ? `### 자료에만 있는 내용
   document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSettings(); });
 
   // ---------- wire up ----------
-  load();
-  $('course').value = state.course; $('topic').value = state.topic;
   $('interval').value = settings.interval || '120';
   $('lang').value = settings.lang || 'ko-KR';
-  $('course').addEventListener('input', e=>{ state.course=e.target.value; save(); });
-  $('topic').addEventListener('input', e=>{ state.topic=e.target.value; save(); });
+  let listT;
+  const relist = () => { clearTimeout(listT); listT = setTimeout(renderLectureList, 600); };
+  $('course').addEventListener('input', e=>{ state.course=e.target.value; save(); relist(); });
+  $('topic').addEventListener('input', e=>{ state.topic=e.target.value; save(); relist(); });
+  $('lectureSel').addEventListener('change', e=>switchLecture(e.target.value));
+  $('newLecBtn').addEventListener('click', async ()=>{
+    // 아무것도 안 적힌 강의가 이미 있으면 그걸 씀
+    const empty = [...lectures.values()].find(l => !l.notes && !l.segments.length && !l.materials.length && !l.important.length && l.id !== state.id);
+    const L = empty || blankLecture(state.course);
+    if(empty){ L.course = state.course; L.createdAt = Date.now(); }
+    lectures.set(L.id, L); saveLec(L);
+    if(state.id !== L.id && !state.notes && !state.segments.length && !state.materials.length && !state.important.length && !state.topic){
+      lectures.delete(state.id); DB.del(state.id).catch(()=>{});
+    }
+    if(listening && speech) await speech.stop().catch(()=>{});
+    state = L; setCurrent(L.id); renderAll();
+    $('topic').focus();
+    toast('새 강의를 만들었어. 오늘 주제를 적어줘');
+  });
+  let delArm = 0;
+  $('delLecBtn').addEventListener('click', async ()=>{
+    const b = $('delLecBtn');
+    if(Date.now() - delArm > 3000){
+      delArm = Date.now(); b.textContent = '정말 삭제? 한 번 더'; b.classList.add('danger');
+      setTimeout(()=>{ b.textContent='🗑'; b.classList.remove('danger'); }, 3000);
+      return;
+    }
+    delArm = 0; b.textContent = '🗑'; b.classList.remove('danger');
+    if(listening && speech) await speech.stop().catch(()=>{});
+    const gone = state;
+    lectures.delete(gone.id); clearTimeout(saveTimers[gone.id]); DB.del(gone.id).catch(()=>{});
+    const next = [...lectures.values()].sort((a,b)=>b.updatedAt-a.updatedAt)[0];
+    state = next || blankLecture(gone.course);
+    if(!next) lectures.set(state.id, state);
+    setCurrent(state.id); renderAll();
+    toast(`'${gone.topic || mdDate(gone.createdAt)+' 강의'}'를 삭제했어`);
+  });
+  $('pinBtn').addEventListener('click', ()=>{
+    const add = $('impAdd'); add.classList.toggle('show'); renderImportant();
+    if(add.classList.contains('show')){ if(editing) $('editBtn').click(); $('notesWrap').scrollTop = 0; $('impText').focus(); }
+  });
+  $('impSave').addEventListener('click', ()=>{
+    const t = $('impText').value.trim(); if(!t) return;
+    addImportant(state, [{type:$('impType').value, text:t}]); save();
+    $('impText').value=''; $('impAdd').classList.remove('show'); renderImportant(); renderLectureList();
+  });
+  $('impText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing) $('impSave').click(); });
   $('interval').addEventListener('change', e=>{ settings.interval=e.target.value; saveSettings(); });
   $('lang').addEventListener('change', e=>{ settings.lang=e.target.value; saveSettings(); });
   $('micBtn').addEventListener('click', onMicClick);
@@ -732,8 +1001,10 @@ ${mat ? `### 자료에만 있는 내용
   $('notesEdit').addEventListener('input', e=>{ state.notes = e.target.value; save(); });
 
   $('copyBtn').addEventListener('click', ()=>{
-    if(!state.notes.trim()){ toast('아직 복사할 노트가 없어'); return; }
-    const text = (state.course? '# '+state.course+(state.topic?' — '+state.topic:'')+'\n\n' : '') + state.notes;
+    if(!state.notes.trim() && !state.important.length){ toast('아직 복사할 노트가 없어'); return; }
+    const head = state.course ? '# '+state.course+(state.topic?' — '+state.topic:'')+` (${mdDate(state.createdAt)})\n\n` : '';
+    const imp = state.important.length ? '## 📌 중요\n' + state.important.map(i=>`- **[${i.type}]** ${i.text}`).join('\n') + '\n\n' : '';
+    const text = head + imp + state.notes;
     navigator.clipboard.writeText(text).then(()=>toast('노트를 복사했어 (마크다운)'))
       .catch(()=>{
         if(!editing) $('editBtn').click();
@@ -742,22 +1013,8 @@ ${mat ? `### 자료에만 있는 내용
       });
   });
 
-  let newArm = 0;
-  $('newBtn').addEventListener('click', ()=>{
-    const b=$('newBtn');
-    if(Date.now() - newArm > 3000){
-      newArm = Date.now(); b.textContent='정말 지울까? 한 번 더'; b.classList.add('danger');
-      setTimeout(()=>{ b.textContent='새 수업'; b.classList.remove('danger'); }, 3000);
-      return;
-    }
-    newArm = 0; b.textContent='새 수업'; b.classList.remove('danger');
-    if(listening && speech) speech.stop().catch(()=>{});
-    state = { course: state.course, topic:'', segments:[], processed:0, notes:'', materials:[], lastPage:-1 };
-    $('topic').value=''; save(); renderTranscript(); renderNotes(); renderChips(); updateButtons();
-    $('noteStatus').textContent=''; toast('새 수업을 시작했어 (강의자료도 비웠어)');
-  });
-
-  renderTranscript(); renderNotes(); renderChips(); updateButtons();
+  renderAll();
+  loadAll().then(renderAll);
 
   // ---------- pick mode ----------
   function webMode(){
