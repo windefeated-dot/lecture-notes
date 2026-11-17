@@ -154,6 +154,36 @@
   .tt-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:12px;font-size:11.5px}
   .tt-grid .day{font-weight:700;text-align:center;color:var(--muted)}
   .tt-grid .cell{background:var(--accent-soft);border-radius:6px;padding:4px 6px;color:var(--accent);line-height:1.35}
+  /* 내보내기 메뉴 */
+  .menu{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);padding:6px;min-width:210px;display:none}
+  .menu.show{display:block}
+  .menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 12px;border-radius:8px;font-size:14px}
+  .menu button:hover{background:#f0ece3}
+  .menu .hint{font-size:11.5px;color:var(--muted);padding:4px 12px 6px}
+  /* 하단 안내 */
+  .foot{padding:0 18px 10px;font-size:11.5px;color:#a9a397;line-height:1.5;text-align:center}
+  .foot span+span::before{content:"\00a0·\00a0"}
+  body.web .foot .webonly{display:inline}
+  /* 인쇄(PDF) */
+  #printArea{display:none}
+  .pdoc{font-family:"Noto Sans KR",system-ui,sans-serif;color:#22211f;font-size:13.5px;line-height:1.65;background:#fff}
+  .pdoc .ptitle{font-size:24px;font-weight:700;margin:0 0 2px}
+  .pdoc .psub{color:#7a766d;font-size:13px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #22211f}
+  .pdoc .ppart{margin-top:22px}
+  .pdoc .ppart.brk{break-before:page;page-break-before:always}
+  .pdoc .ppart>h1.pt{font-size:18px;margin:0 0 6px;padding:6px 10px;background:#f3f0e8;border-radius:6px}
+  .pdoc .important{display:block;margin:10px 0 14px;break-inside:avoid}
+  .pdoc .important li small{color:#7a766d;margin-left:6px;font-size:11px}
+  .pdoc h2{break-after:avoid} .pdoc h3{break-after:avoid}
+  .pdoc .tag{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @media print{
+    @page{size:A4;margin:16mm 15mm}
+    html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+    body.printing{display:block!important}
+    body.printing>*:not(#printArea){display:none!important}
+    body.printing #printArea{display:block!important}
+    .important{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
   @media (max-width:760px){
     .lib-body{grid-template-columns:1fr}
     .lib-col{border-right:0}
@@ -211,7 +241,7 @@
   </label>
   <button id="organizeBtn" disabled>지금 정리</button>
   <button id="finalBtn" disabled>수업 끝 · 최종 정리</button>
-  <button id="copyBtn">노트 복사</button>
+  <button id="exportBtn">⬇ 내보내기</button>
   <button id="settingsBtn" class="ghost webonly" title="설정">⚙ 설정</button>
 </div>
 <div class="materials" id="materials">
@@ -254,12 +284,27 @@
     <button id="libClose">← 노트로 돌아가기</button>
     <h2>📚 강의 노트함</h2>
     <input id="libSearch" type="search" placeholder="노트·주제 검색">
+    <button id="backupBtn">💾 백업</button>
     <button id="ttBtn2">🗓 시간표</button>
   </div>
   <div class="lib-body" id="libBody" data-view="courses">
     <nav class="lib-col" id="libCourses"></nav>
     <section class="lib-col" id="libList"></section>
     <article class="lib-col md" id="libDetail"></article>
+  </div>
+</div>
+
+<div class="modal-bg" id="backupModal">
+  <div class="modal" role="dialog" aria-labelledby="bkTitle">
+    <h3 id="bkTitle">💾 백업</h3>
+    <p>노트는 이 기기의 이 브라우저에만 저장돼요. 브라우저 기록을 지우거나 기기를 바꾸면 사라지니까 가끔 백업 파일로 저장해 두세요. 백업 파일을 다른 기기에서 불러오면 그대로 옮겨져요. (API 키는 백업에 들어가지 않아요)</p>
+    <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+      <button id="bkSave" class="primary">백업 파일 저장</button>
+      <button id="bkLoadBtn">백업 불러오기</button>
+      <input type="file" id="bkFile" accept=".json,application/json" hidden>
+    </div>
+    <p id="bkStatus" style="margin-top:12px"></p>
+    <div class="row"><button id="bkClose">닫기</button></div>
   </div>
 </div>
 
@@ -303,6 +348,11 @@
     </div>
   </div>
 </div>
+<footer class="foot" id="foot">
+  <span>🎙 강의를 녹음하기 전에 교수님 동의를 받아주세요</span><span>노트는 이 기기 브라우저에만 저장돼요 (💾 백업 권장)</span><span class="webonly" id="footGoogle">Chrome 음성인식은 소리를 구글 서버로 보내 글자로 바꿔요</span><span class="webonly" id="footKey">AI 정리는 본인 Claude API 키가 있어야 쓸 수 있어요</span>
+</footer>
+<div class="menu" id="exportMenu" role="menu"></div>
+<div id="printArea"></div>
 <div id="toast"></div>
 
 <script>
@@ -1102,16 +1152,7 @@ ${mat ? `### 자료에만 있는 내용
   });
   $('notesEdit').addEventListener('input', e=>{ state.notes = e.target.value; save(); });
 
-  $('copyBtn').addEventListener('click', ()=>{
-    if(!state.notes.trim() && !state.important.length){ toast('아직 복사할 노트가 없어'); return; }
-    const text = noteText(state);
-    navigator.clipboard.writeText(text).then(()=>toast('노트를 복사했어 (마크다운)'))
-      .catch(()=>{
-        if(!editing) $('editBtn').click();
-        const ta=$('notesEdit'); ta.focus(); ta.select();
-        toast('자동 복사가 막혀서 전체 선택해 뒀어. Ctrl/Cmd+C로 복사해줘');
-      });
-  });
+  $('exportBtn').addEventListener('click', e=>{ e.stopPropagation(); showExportMenu(e.currentTarget, ()=>lectureDoc(state)); });
 
 
   // ---------- 시간표 ----------
@@ -1286,6 +1327,284 @@ JSON 배열만 출력해 (다른 말 없이):
     }
   });
 
+  // ---------- 내보내기 (PDF · Word · 마크다운) ----------
+  const safeName = s => (s||'').replace(/[\\/:*?"<>|\n\r\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60);
+  const ymd = t => { const d=new Date(t); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; };
+  function lectureDoc(L){
+    return {
+      title: L.topic || (L.course ? L.course+' 강의 노트' : '강의 노트'),
+      subtitle: [L.course, fullDate(L.createdAt)].filter(Boolean).join(' · '),
+      important: L.important.map(i=>({type:i.type, text:i.text})),
+      parts: [{ title:'', notes: L.notes }],
+      filename: safeName([L.course, ymd(L.createdAt), L.topic].filter(Boolean).join('_')) || '강의노트'
+    };
+  }
+  function courseDoc(name, lecs){
+    const asc = lecs.slice().sort((a,b)=>a.createdAt-b.createdAt);
+    const imp = [];
+    asc.forEach(l => l.important.forEach(i => imp.push({type:i.type, text:i.text, date: mdDate(l.createdAt)})));
+    imp.sort((a,b)=>TYPES.indexOf(a.type)-TYPES.indexOf(b.type));
+    return {
+      title: name, subtitle: `강의 ${asc.length}개 · ${fullDate(asc[0].createdAt)} ~ ${fullDate(asc[asc.length-1].createdAt)}`,
+      important: imp,
+      parts: asc.map(l => ({ title: `${fullDate(l.createdAt)} · ${l.topic||'주제 없음'}`, notes: l.notes || '(정리된 내용 없음)' })),
+      filename: safeName(name + '_전체노트_' + ymd(Date.now())), multi: true
+    };
+  }
+  function docMarkdown(d){
+    let md = `# ${d.title}\n${d.subtitle ? '_'+d.subtitle+'_\n' : ''}\n`;
+    if(d.important.length) md += '## 📌 중요\n' + d.important.map(i=>`- **[${i.type}]** ${i.text}${i.date?` (${i.date})`:''}`).join('\n') + '\n\n';
+    d.parts.forEach(p => { if(p.title) md += `\n---\n\n# ${p.title}\n\n`; md += (p.notes||'') + '\n'; });
+    return md;
+  }
+
+  // 메뉴
+  let menuDoc = null;
+  function showExportMenu(anchor, getDoc){
+    const m = $('exportMenu');
+    if(m.classList.contains('show') && m._anchor === anchor){ hideMenu(); return; }
+    menuDoc = getDoc; m._anchor = anchor; m.textContent = '';
+    const item = (label, fn) => { const b=document.createElement('button'); b.textContent=label; b.onclick=()=>{ hideMenu(); fn(); }; m.appendChild(b); };
+    item('📄 PDF로 저장', ()=>exportPDF(menuDoc()));
+    item('📝 Word 파일 (.docx)', ()=>exportDocx(menuDoc()));
+    item('📋 마크다운 복사', ()=>{ navigator.clipboard.writeText(docMarkdown(menuDoc())).then(()=>toast('마크다운으로 복사했어')).catch(()=>toast('복사가 막혔어. Word로 내보내 줘')); });
+    const h=document.createElement('div'); h.className='hint'; h.textContent='Word 파일은 구글 문서에서도 열 수 있어요'; m.appendChild(h);
+    m.classList.add('show');
+    const r = anchor.getBoundingClientRect(), w = m.offsetWidth, hgt = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+    m.style.top = (r.bottom + 6 + hgt > innerHeight ? Math.max(8, r.top - hgt - 6) : r.bottom + 6) + 'px';
+  }
+  function hideMenu(){ $('exportMenu').classList.remove('show'); }
+  document.addEventListener('click', e => { if(!e.target.closest('#exportMenu')) hideMenu(); });
+  window.addEventListener('resize', hideMenu);
+
+  // 파일 저장: 사이트는 바로 다운로드, Claude 안에서는 downloads 기능
+  async function saveFile(name, blob){
+    if(mode === 'claude'){
+      const dl = await window.claude.use('downloads');
+      if(!dl){ toast('이 화면에서는 파일 저장을 쓸 수 없어'); return false; }
+      try{ await dl.save({filename:name, data:blob}); toast(`${name} 저장했어`); return true; }
+      catch(e){ if(e && e.code !== 'declined') toast('저장하지 못했어: ' + (e.message||e.code)); return false; }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast(`${name} 저장했어`);
+    return true;
+  }
+
+  // PDF: 인쇄용 화면 → 브라우저 'PDF로 저장' (글자 검색 가능). Claude 안에서는 이미지 PDF로 생성.
+  function printHTML(d){
+    const esc = t => { const x=document.createElement('div'); x.textContent=t; return x.innerHTML; };
+    let h = `<div class="pdoc"><div class="ptitle">${esc(d.title)}</div><div class="psub">${esc(d.subtitle||'')}</div>`;
+    if(d.important.length){
+      h += '<div class="important"><h4>📌 중요 — 시험 · 과제 · 공지</h4><ul>' + d.important.map(i=>`<li><span class="tag ${i.type}">${i.type}</span><span class="txt">${esc(i.text)}${i.date?`<small>${esc(i.date)}</small>`:''}</span></li>`).join('') + '</ul></div>';
+    }
+    d.parts.forEach((p,i) => { h += `<section class="ppart md${d.multi && i>0 ? ' brk':''}">${p.title?`<h1 class="pt">${esc(p.title)}</h1>`:''}${mdToHtml(p.notes||'')}</section>`; });
+    return h + '</div>';
+  }
+  async function exportPDF(d){
+    if(mode !== 'claude'){
+      const area = $('printArea'); area.innerHTML = printHTML(d);
+      const prevTitle = document.title; document.title = d.filename;   // 저장 파일 이름
+      document.body.classList.add('printing');
+      const done = () => { document.body.classList.remove('printing'); area.innerHTML=''; document.title = prevTitle; window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      toast("인쇄 창에서 대상을 'PDF로 저장'으로 골라줘");
+      setTimeout(()=>{ window.print(); setTimeout(done, 1500); }, 300);
+      return;
+    }
+    toast('PDF 만드는 중…');
+    try{
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;padding:36px 40px;background:#fff';
+      box.innerHTML = printHTML(d); document.body.appendChild(box);
+      const canvas = await html2canvas(box, {scale:2, backgroundColor:'#fff', useCORS:true});
+      box.remove();
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({unit:'mm', format:'a4'});
+      const pw = 210, ph = 297, imgH = canvas.height * pw / canvas.width;
+      const pagePx = Math.floor(canvas.width * ph / pw);
+      for(let y=0, n=0; y < canvas.height; y += pagePx, n++){
+        const c = document.createElement('canvas'); c.width = canvas.width; c.height = Math.min(pagePx, canvas.height - y);
+        const g = c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(canvas, 0, -y);
+        if(n) pdf.addPage();
+        pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pw, c.height * pw / c.width);
+      }
+      await saveFile(d.filename + '.pdf', pdf.output('blob'));
+    }catch(e){ toast('PDF를 만들지 못했어: ' + (e.message||'')); }
+  }
+
+  // Word(.docx): JSZip으로 직접 생성
+  const xesc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
+  const TAG_COLOR = {시험:'D9413A', 과제:'E8862A', 공지:'3B4CCA', 강조:'7A4CC4'};
+  function wRun(text, f={}){
+    if(!text) return '';
+    let pr = '';
+    if(f.b) pr += '<w:b/>'; if(f.i) pr += '<w:i/>'; if(f.strike) pr += '<w:strike/>';
+    if(f.mono) pr += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>';
+    if(f.color) pr += `<w:color w:val="${f.color}"/>`;
+    if(f.size) pr += `<w:sz w:val="${f.size}"/><w:szCs w:val="${f.size}"/>`;
+    if(f.hl) pr += `<w:shd w:val="clear" w:color="auto" w:fill="${f.hl}"/>`;
+    return text.split('\n').map((part, i) => (i ? '<w:r><w:br/></w:r>' : '') + `<w:r>${pr?`<w:rPr>${pr}</w:rPr>`:''}<w:t xml:space="preserve">${xesc(part)}</w:t></w:r>`).join('');
+  }
+  const unesc = t => String(t||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&');
+  function wInline(tokens, f={}){
+    return (tokens||[]).map(t => {
+      switch(t.type){
+        case 'strong': return wInline(t.tokens, {...f, b:true, hl:'E8EBFF'});
+        case 'em': return wInline(t.tokens, {...f, i:true});
+        case 'del': return wInline(t.tokens, {...f, strike:true});
+        case 'codespan': return wRun(unesc(t.text), {...f, mono:true});
+        case 'br': return '<w:r><w:br/></w:r>';
+        case 'link': return wInline(t.tokens, {...f, color:'3B4CCA'});
+        case 'text': return t.tokens ? wInline(t.tokens, f) : wRun(unesc(t.text), f);
+        case 'escape': return wRun(unesc(t.text), f);
+        case 'html': return wRun(t.text.replace(/<[^>]+>/g,''), f);
+        default: return wRun(t.raw || t.text || '', f);
+      }
+    }).join('');
+  }
+  function wPara(runs, o={}){
+    let pr = '';
+    if(o.style) pr += `<w:pStyle w:val="${o.style}"/>`;
+    if(o.num) pr += `<w:numPr><w:ilvl w:val="${Math.min(o.lvl||0,3)}"/><w:numId w:val="${o.num}"/></w:numPr>`;
+    if(o.pageBreak) pr += '<w:pageBreakBefore/>';
+    if(o.border) pr += '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="D8D2C4"/></w:pBdr>';
+    if(o.indent) pr += `<w:ind w:left="${o.indent}"/>`;
+    return `<w:p>${pr?`<w:pPr>${pr}</w:pPr>`:''}${runs}</w:p>`;
+  }
+  function wBlocks(tokens, lvl){
+    let out = '';
+    for(const t of tokens||[]){
+      switch(t.type){
+        case 'heading': out += wPara(wInline(t.tokens), {style:'Heading'+Math.min(Math.max(t.depth,1),3)}); break;
+        case 'paragraph': out += wPara(wInline(t.tokens)); break;
+        case 'list':
+          for(const it of t.items){
+            let first = true;
+            for(const c of it.tokens){
+              if(c.type === 'list') out += wBlocks([c], (lvl||0)+1);
+              else if(first && (c.type==='text' || c.type==='paragraph')){ out += wPara(wInline(c.tokens || [{type:'text', text:c.text}]), {num: t.ordered?2:1, lvl:lvl||0}); first = false; }
+              else out += wBlocks([c], lvl);
+            }
+            if(first) out += wPara('', {num: t.ordered?2:1, lvl:lvl||0});
+          }
+          break;
+        case 'table': {
+          const cell = (runs, head) => `<w:tc><w:tcPr>${head?'<w:shd w:val="clear" w:color="auto" w:fill="F3F0E8"/>':''}</w:tcPr>${wPara(runs)}</w:tc>`;
+          out += '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>' +
+            ['top','left','bottom','right','insideH','insideV'].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="D8D2C4"/>`).join('') +
+            '</w:tblBorders><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>';
+          out += '<w:tr>' + t.header.map(h=>cell(wInline(h.tokens,{b:true}), true)).join('') + '</w:tr>';
+          t.rows.forEach(r => { out += '<w:tr>' + r.map(c=>cell(wInline(c.tokens), false)).join('') + '</w:tr>'; });
+          out += '</w:tbl>' + wPara('');
+          break;
+        }
+        case 'blockquote': out += wBlocks(t.tokens, lvl).replace(/<w:p>(?:<w:pPr>)?/g, m => m === '<w:p>' ? '<w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr>' : '<w:p><w:pPr><w:pStyle w:val="Quote"/>'); break;
+        case 'code': out += t.text.split('\n').map(l=>wPara(wRun(l,{mono:true}))).join(''); break;
+        case 'hr': out += wPara('', {border:true}); break;
+        case 'space': break;
+        case 'html': { const tx = t.text.replace(/<[^>]+>/g,'').trim(); if(tx) out += wPara(wRun(tx)); break; }
+        default: if(t.text) out += wPara(wRun(t.text));
+      }
+    }
+    return out;
+  }
+  function wImportant(items){
+    if(!items.length) return '';
+    const rows = items.map(i => wPara(wRun(` ${i.type} `, {b:true, color:'FFFFFF', hl:TAG_COLOR[i.type]||'7A766D', size:18}) + wRun('  ' + i.text + (i.date?`  (${i.date})`:''))) ).join('');
+    return '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>' +
+      ['top','left','bottom','right'].map(k=>`<w:${k} w:val="single" w:sz="8" w:space="0" w:color="F0B4A9"/>`).join('') +
+      '</w:tblBorders><w:tblCellMar><w:top w:w="80" w:type="dxa"/><w:left w:w="160" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="160" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tr><w:tc><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="FFF6F3"/></w:tcPr>' +
+      wPara(wRun('📌 중요 — 시험 · 과제 · 공지', {b:true, color:'A3321F'})) + rows + '</w:tc></w:tr></w:tbl>' + wPara('');
+  }
+  const DOCX_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:eastAsia="Malgun Gothic" w:cs="Malgun Gothic"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="40"/></w:pPr><w:rPr><w:b/><w:sz w:val="40"/><w:szCs w:val="40"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="12" w:space="4" w:color="22211F"/></w:pBdr><w:spacing w:after="240"/></w:pPr><w:rPr><w:color w:val="7A766D"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:shd w:val="clear" w:color="auto" w:fill="F3F0E8"/><w:spacing w:before="240" w:after="120"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:pBdr><w:bottom w:val="single" w:sz="8" w:space="2" w:color="E8EBFF"/></w:pBdr><w:spacing w:before="240" w:after="100"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="200" w:after="80"/><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:b/><w:color w:val="3B4CCA"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="360"/><w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="D8D2C4"/></w:pBdr></w:pPr><w:rPr><w:color w:val="7A766D"/></w:rPr></w:style>
+</w:styles>`;
+  const DOCX_NUMBERING = (() => {
+    const bul = ['•','◦','▪','•'];
+    const lv = (i, fmt, txt) => `<w:lvl w:ilvl="${i}"><w:start w:val="1"/><w:numFmt w:val="${fmt}"/><w:lvlText w:val="${txt}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${400+i*400}" w:hanging="280"/></w:pPr></w:lvl>`;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>${bul.map((b,i)=>lv(i,'bullet',b)).join('')}</w:abstractNum>
+<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>${[0,1,2,3].map(i=>lv(i,'decimal',`%${i+1}.`)).join('')}</w:abstractNum>
+<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+</w:numbering>`;
+  })();
+  async function buildDocx(d){
+    await loadScript(LIBS.zip);
+    let body = wPara(wRun(d.title), {style:'Title'}) + wPara(wRun(d.subtitle||''), {style:'Subtitle'});
+    body += wImportant(d.important);
+    d.parts.forEach((p, i) => {
+      if(p.title) body += (d.multi && i>0 ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' : '') + wPara(wRun(p.title), {style:'Heading1'});
+      try{ body += wBlocks(marked.lexer(p.notes || '')); }
+      catch(e){ body += (p.notes||'').split('\n').map(l=>wPara(wRun(l))).join(''); }
+    });
+    const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>`);
+    zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+    zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>`);
+    zip.file('word/document.xml', doc);
+    zip.file('word/styles.xml', DOCX_STYLES);
+    zip.file('word/numbering.xml', DOCX_NUMBERING);
+    return zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  }
+  async function exportDocx(d){
+    try{ await saveFile(d.filename + '.docx', await buildDocx(d)); }
+    catch(e){ toast('Word 파일을 만들지 못했어: ' + (e.message||'')); }
+  }
+  window.__buildDocx = buildDocx; window.__lectureDoc = () => lectureDoc(state); // 테스트용
+
+  // ---------- 💾 백업 ----------
+  $('backupBtn').addEventListener('click', ()=>{ $('bkStatus').textContent=''; $('backupModal').classList.add('show'); });
+  $('bkClose').addEventListener('click', ()=>$('backupModal').classList.remove('show'));
+  $('backupModal').addEventListener('click', e=>{ if(e.target.id==='backupModal') $('backupModal').classList.remove('show'); });
+  $('bkSave').addEventListener('click', async ()=>{
+    const data = { app:'lecture-notes', version:1, exportedAt: new Date().toISOString(),
+      timetable: settings.timetable || [], lectures: [...lectures.values()].filter(l => !isEmptyLecture(l) || l.topic) };
+    const ok = await saveFile(`강의노트_백업_${ymd(Date.now())}.json`, new Blob([JSON.stringify(data)], {type:'application/json'}));
+    if(ok) $('bkStatus').textContent = `강의 ${data.lectures.length}개와 시간표를 백업했어요.`;
+  });
+  $('bkLoadBtn').addEventListener('click', ()=>$('bkFile').click());
+  $('bkFile').addEventListener('change', async e=>{
+    const f = e.target.files[0]; e.target.value=''; if(!f) return;
+    try{
+      const data = JSON.parse(await f.text());
+      if(data.app !== 'lecture-notes' || !Array.isArray(data.lectures)) throw new Error('강의 노트 백업 파일이 아니야');
+      let added = 0, updated = 0;
+      data.lectures.forEach(raw => {
+        if(!raw || !raw.id) return;
+        const L = normalize(raw), cur = lectures.get(L.id);
+        if(!cur){ lectures.set(L.id, L); saveLec(L); added++; }
+        else if((L.updatedAt||0) > (cur.updatedAt||0)){ Object.assign(cur, L); saveLec(cur); updated++; }
+      });
+      let tt = 0;
+      const have = new Set((settings.timetable||[]).map(r=>normCourse(r.course)+'|'+r.day+'|'+r.start));
+      (data.timetable||[]).forEach(r => { const k = normCourse(r.course)+'|'+r.day+'|'+r.start; if(r.course && !have.has(k)){ settings.timetable.push({course:r.course, day:+r.day, start:r.start, end:r.end}); have.add(k); tt++; } });
+      if(tt) saveSettings();
+      // 비어 있는 현재 강의 대신 불러온 강의를 보여줌
+      if(isEmptyLecture(state) && !state.topic && added){ lectures.delete(state.id); state = [...lectures.values()].sort((a,b)=>b.updatedAt-a.updatedAt)[0]; setCurrent(state.id); }
+      renderAll(); if(!$('library').hidden) renderLibrary();
+      $('bkStatus').textContent = `불러오기 완료: 새 강의 ${added}개, 더 최신으로 바뀐 강의 ${updated}개, 시간표 ${tt}개 추가.`;
+    }catch(err){ $('bkStatus').textContent = '불러오지 못했어요: ' + (err.message||''); }
+  });
+
   // ---------- 📚 노트함 ----------
   const lib = { course: null, lecture: null, q: '' };
   const NONE = '__none__';
@@ -1369,7 +1688,10 @@ JSON 배열만 출력해 (다른 말 없이):
         });
         box.appendChild(ul); wrap.appendChild(box); listEl.appendChild(wrap);
       }
-      const h2 = document.createElement('div'); h2.className='lib-h'; h2.textContent = `${cur.name} · 강의 ${lecs.length}개`; listEl.appendChild(h2);
+      const h2 = document.createElement('div'); h2.className='lib-h'; h2.style.cssText='display:flex;align-items:center;gap:8px';
+      const h2t = document.createElement('span'); h2t.style.flex='1'; h2t.textContent = `${cur.name} · 강의 ${lecs.length}개`; h2.appendChild(h2t);
+      if(lecs.length){ const ex = document.createElement('button'); ex.textContent='⬇ 수업 전체'; ex.style.cssText='padding:4px 9px;font-size:12px'; ex.title='이 수업의 모든 강의를 한 파일로'; ex.onclick = e => { e.stopPropagation(); showExportMenu(ex, ()=>courseDoc(cur.name, lecs)); }; h2.appendChild(ex); }
+      listEl.appendChild(h2);
       if(!lecs.length){ const e=document.createElement('div'); e.className='lib-empty'; e.textContent='이 수업으로 저장된 강의가 아직 없어요.'; listEl.appendChild(e); }
       if(!lib.lecture || !lecs.find(l=>l.id===lib.lecture)) lib.lecture = lecs[0] ? lecs[0].id : null;
       lecs.forEach(l => {
@@ -1397,8 +1719,8 @@ JSON 배열만 출력해 (다른 말 없이):
     mv.onchange = () => { L.course = mv.value.trim(); saveLec(L); if(L===state) $('course').value = L.course; lib.course = courseKey(L); renderLectureList(); renderCourseList(); renderLibrary(); toast(L.course ? `'${L.course}'(으)로 옮겼어` : '수업 미지정으로 옮겼어'); };
     const open = document.createElement('button'); open.className='primary'; open.textContent = L.id===state.id ? '노트 화면으로' : '이 강의 열기';
     open.onclick = async () => { await switchLecture(L.id); closeLibrary(); };
-    const copy = document.createElement('button'); copy.textContent='노트 복사';
-    copy.onclick = () => navigator.clipboard.writeText(noteText(L)).then(()=>toast('노트를 복사했어 (마크다운)')).catch(()=>toast('복사가 막혔어. 강의를 열어서 편집 화면에서 복사해줘'));
+    const copy = document.createElement('button'); copy.textContent='⬇ 내보내기';
+    copy.onclick = e => { e.stopPropagation(); showExportMenu(copy, ()=>lectureDoc(L)); };
     head.append(h3, meta, mv, open, copy); el.appendChild(head);
     if(L.materials.length){ const m=document.createElement('div'); m.className='meta'; m.style.cssText='font-size:13px;color:var(--muted);margin-top:4px'; m.textContent='📎 '+L.materials.map(x=>x.name).join(', '); el.appendChild(m); }
     if(L.important.length){
