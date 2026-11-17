@@ -148,6 +148,9 @@
   .tt-row input,.tt-row select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;background:#fff}
   .tt-row button{border:0;background:transparent;color:var(--muted);font-size:17px;padding:0}
   .tt-head{display:grid;grid-template-columns:1fr 68px 124px 124px 28px;gap:6px;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  .tt-photo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 6px;padding:10px 12px;background:var(--accent-soft);border-radius:10px}
+  .tt-photo span{font-size:12.5px;color:#3a4290;flex:1;min-width:180px}
+  .tt-row.guess input,.tt-row.guess select{border-color:#e8a33a;background:#fffaf0}
   .tt-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:12px;font-size:11.5px}
   .tt-grid .day{font-weight:700;text-align:center;color:var(--muted)}
   .tt-grid .cell{background:var(--accent-soft);border-radius:6px;padding:4px 6px;color:var(--accent);line-height:1.35}
@@ -264,6 +267,11 @@
   <div class="modal wide" role="dialog" aria-labelledby="ttTitle">
     <h3 id="ttTitle">🗓 시간표</h3>
     <p>시간표에 있는 시간(앞뒤 10분 포함)에 녹음을 시작하면 그 수업으로 자동 분류돼요. 다른 수업 노트가 열려 있으면 새 강의를 자동으로 만들어요.</p>
+    <div class="tt-photo">
+      <button id="ttPhotoBtn" class="primary">📷 시간표 사진으로 불러오기</button>
+      <span id="ttPhotoStatus">포털·에브리타임 시간표 캡처나 사진을 올리면 AI가 읽어서 채워줘요.</span>
+      <input type="file" id="ttPhoto" accept="image/*" hidden>
+    </div>
     <div class="tt-head"><span>수업 이름</span><span>요일</span><span>시작</span><span>끝</span><span></span></div>
     <div id="ttRows"></div>
     <button id="ttAdd" class="attach">+ 수업 시간 추가</button>
@@ -319,6 +327,7 @@
   let settings = { apiKey:'', model:'claude-sonnet-5-5', lang:'ko-KR', interval:'120', timetable:[] };
   let mode = 'pending';           // 'claude' | 'web'
   let speech = null, ai = null;   // engines
+  let sampleRaw = null;           // claude.ai sample (사진 읽기용)
   let listening = false, partial = '';
   let busy = false, backoffUntil = 0, lastRun = Date.now(), editing = false;
 
@@ -808,8 +817,7 @@ ${mat ? `### 자료에만 있는 내용
       onText: ({text}) => onProgress && onProgress(text.length)
     });
   }
-  function anthropicAI(){
-    return async (prompt, {final, onProgress}) => {
+  async function anthropicCall(content, maxTokens){
       if(!settings.apiKey){ const e = new Error('API 키가 없어'); e.code='no_key'; throw e; }
       let res;
       try{
@@ -821,7 +829,7 @@ ${mat ? `### 자료에만 있는 내용
             'anthropic-version':'2023-06-01',
             'anthropic-dangerous-direct-browser-access':'true'
           },
-          body: JSON.stringify({ model: settings.model, max_tokens: final ? 4000 : 2000, messages:[{role:'user', content: prompt}] })
+          body: JSON.stringify({ model: settings.model, max_tokens: maxTokens, messages:[{role:'user', content}] })
         });
       }catch(err){ const e = new Error('네트워크 오류'); e.code='network'; throw e; }
       if(!res.ok){
@@ -832,8 +840,13 @@ ${mat ? `### 자료에만 있는 내용
       }
       const j = await res.json();
       const text = (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-      onProgress && onProgress(text.length);
       return { text, truncated: j.stop_reason === 'max_tokens' };
+  }
+  function anthropicAI(){
+    return async (prompt, {final, onProgress}) => {
+      const r = await anthropicCall(prompt, final ? 4000 : 2000);
+      onProgress && onProgress(r.text.length);
+      return r;
     };
   }
 
@@ -1150,14 +1163,15 @@ ${mat ? `### 자료에만 있는 내용
 
   let ttDraft = [];
   function ttRow(r){
-    const row = document.createElement('div'); row.className='tt-row';
+    const row = document.createElement('div'); row.className='tt-row' + (r.guess ? ' guess' : '');
+    if(r.guess) row.title = '사진에 시간이 안 보여서 교시로 추정한 시간이야. 확인해줘';
     const c = document.createElement('input'); c.placeholder='예: 디자인과 문화'; c.value=r.course||''; c.setAttribute('list','courseList');
     const d = document.createElement('select'); [1,2,3,4,5,6,0].forEach(i=>{ const o=document.createElement('option'); o.value=i; o.textContent=DAYS[i]; d.appendChild(o); }); d.value = String(r.day ?? 1);
     const st = document.createElement('input'); st.type='time'; st.value=r.start||'09:00';
     const en = document.createElement('input'); en.type='time'; en.value=r.end||'10:15';
     const x = document.createElement('button'); x.textContent='×'; x.title='삭제';
     c.oninput=()=>{ r.course=c.value; renderTtGrid(); }; d.onchange=()=>{ r.day=+d.value; renderTtGrid(); };
-    st.onchange=()=>{ r.start=st.value; renderTtGrid(); }; en.onchange=()=>{ r.end=en.value; renderTtGrid(); };
+    st.onchange=()=>{ r.start=st.value; r.guess=false; row.classList.remove('guess'); renderTtGrid(); }; en.onchange=()=>{ r.end=en.value; r.guess=false; row.classList.remove('guess'); renderTtGrid(); };
     x.onclick=()=>{ ttDraft = ttDraft.filter(o=>o!==r); renderTt(); };
     row.append(c,d,st,en,x); return row;
   }
@@ -1177,6 +1191,7 @@ ${mat ? `### 자료에만 있는 내용
   function openTimetable(){
     ttDraft = (settings.timetable||[]).map(r=>Object.assign({}, r));
     if(!ttDraft.length) ttDraft.push({course: state.course||'', day: new Date().getDay()||1, start:'09:00', end:'10:15'});
+    $('ttPhotoStatus').textContent = '포털·에브리타임 시간표 캡처나 사진을 올리면 AI가 읽어서 채워줘요.';
     renderTt(); $('ttModal').classList.add('show');
   }
   $('ttBtn').addEventListener('click', openTimetable);
@@ -1193,6 +1208,82 @@ ${mat ? `### 자료에만 있는 내용
     if(!$('library').hidden) renderLibrary();
     const slot = slotAt();
     toast(slot ? `저장했어. 지금은 '${slot.course}' 시간이야` : `시간표 저장 완료 (${settings.timetable.length}개)`);
+  });
+
+  // ---------- 시간표 사진 → AI로 읽기 ----------
+  async function imageToJpeg(file, max){
+    const url = URL.createObjectURL(file);
+    try{
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('이미지를 열 수 없어 (HEIC면 JPG·PNG로 바꿔서 올려줘)')); i.src = url; });
+      const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      const dataUrl = c.toDataURL('image/jpeg', 0.9);
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+      return { blob, b64: dataUrl.split(',')[1] };
+    } finally { URL.revokeObjectURL(url); }
+  }
+  const TT_PROMPT = `이 이미지는 대학교 수업 시간표야. 수업마다 요일과 시간을 뽑아줘.
+JSON 배열만 출력해 (다른 말 없이):
+[{"course":"과목 이름","day":"월","start":"09:00","end":"10:15"}]
+규칙:
+- day는 월/화/수/목/금/토/일 중 하나. 같은 과목이 여러 요일에 있으면 요일마다 따로 한 항목.
+- 같은 요일에 이어진 칸은 하나로 합쳐서 첫 시작~마지막 끝 시간으로.
+- start/end는 24시간제 HH:MM. 오후 1시는 13:00.
+- course는 과목 이름만 (강의실, 교수명, 학수번호, 분반 번호는 빼). 잘린 이름은 보이는 대로.
+- 칸 옆 시간 눈금으로 시간을 읽어. 시간이 전혀 안 보이고 교시 번호만 있으면 1교시=09:00 시작, 교시마다 1시간(50분 수업)으로 계산하고 그 항목에 "guess":true 를 붙여.
+- 시간표가 아니면 [] 만 출력.`;
+  async function readTimetableImage(img){
+    if(mode === 'claude'){
+      if(!sampleRaw) throw new Error('이 화면에서는 AI를 쓸 수 없어');
+      try{ if(sampleRaw.limits){ const lim = await sampleRaw.limits(); if(lim && lim.images === false) throw new Error('이 화면에서는 사진 읽기를 쓸 수 없어'); } }catch(e){ if(/사진 읽기/.test(e.message)) throw e; }
+      const r = await sampleRaw(TT_PROMPT, { images:[img.blob], modelTier:'default', cache:false });
+      return r.text;
+    }
+    const r = await anthropicCall([
+      { type:'image', source:{ type:'base64', media_type:'image/jpeg', data: img.b64 } },
+      { type:'text', text: TT_PROMPT }
+    ], 2000);
+    return r.text;
+  }
+  function parseTimetable(text){
+    const a = text.indexOf('['), b = text.lastIndexOf(']');
+    if(a < 0 || b < a) throw new Error('시간표를 읽지 못했어');
+    const arr = JSON.parse(text.slice(a, b+1));
+    const hm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t||'').trim()); return m ? String(+m[1]).padStart(2,'0')+':'+m[2] : null; };
+    return arr.map(o => ({
+      course: String(o.course||'').trim(), day: DAYS.indexOf(String(o.day||'').trim().charAt(0)),
+      start: hm(o.start), end: hm(o.end), guess: !!o.guess
+    })).filter(r => r.course && r.day >= 0 && r.start && r.end && toMin(r.end) > toMin(r.start));
+  }
+  $('ttPhotoBtn').addEventListener('click', () => $('ttPhoto').click());
+  $('ttPhoto').addEventListener('change', async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if(!file) return;
+    const btn = $('ttPhotoBtn'), st = $('ttPhotoStatus');
+    btn.disabled = true; btn.textContent = '📷 읽는 중…'; st.textContent = 'AI가 시간표를 읽고 있어요 (10~20초)';
+    try{
+      const img = await imageToJpeg(file, 1600);
+      const rows = parseTimetable(await readTimetableImage(img));
+      if(!rows.length){ st.textContent = '시간표를 찾지 못했어요. 더 선명한 캡처로 다시 해볼래요?'; return; }
+      ttDraft = ttDraft.filter(r => r.course && r.course.trim());
+      const key = r => normCourse(r.course)+'|'+r.day+'|'+r.start;
+      const have = new Set(ttDraft.map(key));
+      let added = 0;
+      rows.forEach(r => { if(!have.has(key(r))){ ttDraft.push(r); have.add(key(r)); added++; } });
+      renderTt();
+      const g = rows.filter(r=>r.guess).length;
+      if(!added){ st.textContent = '사진에 있는 수업은 이미 다 들어 있어요.'; return; }
+      st.textContent = `${added}개를 불러왔어요${g ?` (주황색 ${g}개는 교시로 추정한 시간)` : ''}. 맞는지 확인하고 저장을 눌러주세요.`;
+    }catch(err){
+      const code = err && err.code;
+      if(code === 'no_key'){ st.textContent = '사진 읽기에도 API 키가 필요해요. ⚙ 설정에서 넣어주세요.'; openSettings(); }
+      else if(code === 'not_granted'){ st.textContent = 'AI 사용이 허용되지 않았어요.'; }
+      else if(code === 'rate_limited'){ st.textContent = '요청이 많아요. 잠시 후 다시 해주세요.'; }
+      else st.textContent = '못 읽었어요: ' + ((err && err.message) || '알 수 없는 오류');
+    }finally{
+      btn.disabled = false; btn.textContent = '📷 시간표 사진으로 불러오기';
+    }
   });
 
   // ---------- 📚 노트함 ----------
@@ -1353,6 +1444,7 @@ ${mat ? `### 자료에만 있는 내용
     mode = 'claude';
     window.claude.use('dictation').then(setupSpeech).catch(()=>setupSpeech(null));
     window.claude.use('sample').then(s=>{
+      sampleRaw = s;
       ai = s ? claudeAI(s) : null;
       if(!s) notice('이 화면에서는 AI 정리를 쓸 수 없어.');
       updateButtons();
