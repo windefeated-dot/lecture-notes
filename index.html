@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>실시간 강의 노트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f4ef; --panel:#fffdf9; --ink:#22211f; --muted:#7a766d; --line:#e4dfd4;
+    --accent:#3b4cca; --accent-soft:#e8ebff; --rec:#d9413a; --new:#fff3c4; --ok:#2f8a57;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Noto Sans KR",system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;font-size:15px;line-height:1.6}
+  header{display:flex;gap:10px;align-items:center;padding:14px 18px 8px;flex-wrap:wrap}
+  .brand{font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px;margin-right:6px;white-space:nowrap}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--rec);animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  header input{flex:1 1 180px;min-width:150px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);font:inherit;color:inherit}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+  .toolbar{display:flex;gap:8px;align-items:center;padding:4px 18px 8px;flex-wrap:wrap}
+  button{font:inherit;font-size:14px;padding:8px 13px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;white-space:nowrap}
+  button:hover:not(:disabled){border-color:#c9c2b3}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+  button.primary.rec{background:var(--rec);border-color:var(--rec)}
+  button.ghost{background:transparent}
+  button.danger{border-color:var(--rec);color:var(--rec)}
+  select{font:inherit;font-size:14px;padding:7px 8px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:inherit}
+  label.inline{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+  #status{font-size:13px;color:var(--muted);min-width:60px}
+  .spacer{flex:1}
+  .webonly{display:none}
+  body.web .webonly{display:inline-flex}
+  .materials{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 18px 12px;font-size:13px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 6px 3px 11px;color:var(--ink);max-width:280px}
+  .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip small{color:var(--muted);white-space:nowrap}
+  .chip button{border:0;background:transparent;padding:0 5px;font-size:15px;line-height:1;color:var(--muted)}
+  .chip.loading{opacity:.6}
+  .attach{padding:4px 11px;font-size:13px;border-style:dashed}
+  body.drag main{outline:3px dashed var(--accent);outline-offset:-6px;border-radius:16px}
+  main{flex:1;display:grid;grid-template-columns:minmax(280px,2fr) 3fr;gap:14px;padding:0 18px 18px;min-height:0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .panel h2{font-size:14px;margin:0;padding:11px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;font-weight:700}
+  .panel h2 small{font-weight:400;color:var(--muted);font-size:12px}
+  .panel h2 .spacer{flex:1}
+  .panel h2 button{padding:3px 9px;font-size:12px}
+  #transcript{flex:1;overflow-y:auto;padding:13px 15px;font-size:14px;color:#4a4740;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
+  #transcript .done{color:#9a958a}
+  #transcript .pending{background:var(--new);border-radius:3px}
+  #transcript .partial{color:var(--muted);font-style:italic}
+  #transcript .empty,.notes-empty{color:var(--muted);font-style:normal}
+  .manual{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
+  .manual textarea{flex:1;resize:vertical;min-height:42px;max-height:180px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fff}
+  #notesWrap{flex:1;overflow-y:auto;padding:6px 22px 24px}
+  #notesEdit{flex:1;border:0;padding:16px 20px;font-family:ui-monospace,Menlo,monospace;font-size:13px;resize:none;background:#fff;display:none}
+  .md h1{font-size:21px;margin:18px 0 8px}
+  .md h2{font-size:18px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--accent-soft)}
+  .md h3{font-size:16px;margin:18px 0 6px;color:var(--accent)}
+  .md ul,.md ol{padding-left:22px;margin:6px 0}
+  .md li{margin:3px 0}
+  .md strong{background:linear-gradient(transparent 60%,var(--accent-soft) 60%)}
+  .md table{border-collapse:collapse;margin:10px 0;font-size:14px;width:100%}
+  .md th,.md td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  .md th{background:#f3f0e8}
+  .md blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--line);color:var(--muted)}
+  .working{display:none;align-items:center;gap:8px;padding:8px 22px;font-size:13px;color:var(--accent);background:var(--accent-soft)}
+  .working.show{display:flex}
+  .spin{width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#2a2925;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;text-align:center;z-index:30}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .notice{margin:0 18px 10px;padding:9px 13px;border-radius:10px;background:#fdecea;color:#8a2a24;font-size:13px;display:none}
+  .notice.show{display:block}
+  .modal-bg{position:fixed;inset:0;background:rgba(30,28,24,.4);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel);border-radius:16px;padding:22px;width:min(460px,100%);box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .modal h3{margin:0 0 4px;font-size:17px}
+  .modal p{margin:4px 0 14px;font-size:13px;color:var(--muted)}
+  .modal label{display:block;font-size:13px;font-weight:500;margin:12px 0 5px}
+  .modal input,.modal select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fff}
+  .modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+  .modal a{color:var(--accent)}
+  @media (max-width:760px){
+    main{grid-template-columns:1fr;grid-template-rows:minmax(220px,38vh) minmax(320px,1fr)}
+    header,.toolbar,.materials{padding-left:12px;padding-right:12px}
+    main{padding:0 12px 12px}
+    .toolbar .spacer{display:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot" id="recDot"></span>실시간 강의 노트</div>
+  <input id="course" placeholder="수업 이름 (예: 디자인과 문화)">
+  <input id="topic" placeholder="오늘 주제 (선택, 예: 아르누보와 가우디)">
+</header>
+<div class="toolbar">
+  <button id="micBtn" class="primary" disabled>🎙 듣기 시작</button>
+  <select id="lang" class="webonly" title="강의 언어">
+    <option value="ko-KR">한국어</option>
+    <option value="en-US">English</option>
+    <option value="fr-FR">Français</option>
+    <option value="zh-CN">中文</option>
+  </select>
+  <span id="status">준비 중…</span>
+  <span class="spacer"></span>
+  <label class="inline">자동 정리
+    <select id="interval">
+      <option value="60">1분마다</option>
+      <option value="120" selected>2분마다</option>
+      <option value="300">5분마다</option>
+      <option value="0">끄기</option>
+    </select>
+  </label>
+  <button id="organizeBtn" disabled>지금 정리</button>
+  <button id="finalBtn" disabled>수업 끝 · 최종 정리</button>
+  <button id="copyBtn">노트 복사</button>
+  <button id="newBtn" class="ghost">새 수업</button>
+  <button id="settingsBtn" class="ghost webonly" title="설정">⚙ 설정</button>
+</div>
+<div class="materials" id="materials">
+  <span>📎 강의자료</span>
+  <span id="chips"></span>
+  <button class="attach" id="attachBtn">+ PDF · PPTX · DOCX · TXT 첨부</button>
+  <input type="file" id="fileInput" multiple accept=".pdf,.pptx,.docx,.txt,.md,application/pdf" hidden>
+</div>
+<div class="notice" id="notice"></div>
+<main>
+  <section class="panel">
+    <h2>받아쓰기 <small id="pendingInfo"></small></h2>
+    <div id="transcript"></div>
+    <div class="manual">
+      <textarea id="manualText" placeholder="직접 메모하거나, 다른 앱(클로바노트 등)의 받아쓰기를 붙여넣기"></textarea>
+      <button id="addManual">추가</button>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>정리 노트 <small id="noteStatus"></small><span class="spacer"></span><button id="editBtn">편집</button></h2>
+    <div class="working" id="working"><span class="spin"></span><span id="workingText">정리 중…</span></div>
+    <div id="notesWrap"><article id="notes" class="md"></article></div>
+    <textarea id="notesEdit" spellcheck="false"></textarea>
+  </section>
+</main>
+
+<div class="modal-bg" id="settingsModal">
+  <div class="modal" role="dialog" aria-labelledby="setTitle">
+    <h3 id="setTitle">AI 설정</h3>
+    <p>이 사이트는 각자의 Claude API 키로 정리해요. 키는 <b>이 브라우저에만</b> 저장되고, Anthropic API로만 전송돼요. API 사용료는 Claude 구독과 별도로 청구돼요.</p>
+    <label for="apiKey">Claude API 키</label>
+    <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+    <p style="margin-top:6px">키 발급: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a></p>
+    <label for="model">모델</label>
+    <select id="model">
+      <option value="claude-sonnet-5-5">Sonnet 5.5 — 추천 (정확도·속도 균형)</option>
+      <option value="claude-haiku-5-5">Haiku 5.5 — 가장 저렴하고 빠름</option>
+      <option value="claude-opus-5-5">Opus 5.5 — 가장 정교함 (비쌈)</option>
+    </select>
+    <div class="row">
+      <button id="clearKey" class="ghost">키 지우기</button>
+      <button id="closeSettings">닫기</button>
+      <button id="saveSettings" class="primary">저장</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const KEY = 'lecture-notes-v1';
+  const SKEY = 'lecture-notes-settings';
+  let state = { course:'', topic:'', segments:[], processed:0, notes:'', materials:[], lastPage:-1 };
+  let settings = { apiKey:'', model:'claude-sonnet-5-5', lang:'ko-KR', interval:'120' };
+  let mode = 'pending';           // 'claude' | 'web'
+  let speech = null, ai = null;   // engines
+  let listening = false, partial = '';
+  let busy = false, backoffUntil = 0, lastRun = Date.now(), editing = false;
+
+  // ---------- storage (best effort) ----------
+  function load(){
+    try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s && typeof s==='object') state = Object.assign(state, s); }catch(e){}
+    try{ const s = JSON.parse(localStorage.getItem(SKEY)||'null'); if(s && typeof s==='object') settings = Object.assign(settings, s); }catch(e){}
+    if(!Array.isArray(state.materials)) state.materials = [];
+  }
+  let warnedSize = false;
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch(e){
+      if(!warnedSize && state.materials.length){ warnedSize = true; toast('강의자료가 커서 저장 공간이 부족해. 새로고침하면 자료를 다시 첨부해야 할 수 있어'); }
+      try{ localStorage.setItem(KEY, JSON.stringify(Object.assign({}, state, {materials:[]}))); }catch(_){}
+    }
+  }
+  function saveSettings(){ try{ localStorage.setItem(SKEY, JSON.stringify(settings)); }catch(e){} }
+
+  // ---------- ui helpers ----------
+  let toastT;
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3400); }
+  function notice(msg){ const n=$('notice'); if(msg){ n.textContent=msg; n.classList.add('show'); } else n.classList.remove('show'); }
+  function nowStr(){ const d=new Date(); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
+  function pendingText(){ return state.segments.slice(state.processed).join(' '); }
+
+  function renderTranscript(){
+    const box=$('transcript');
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.textContent='';
+    if(!state.segments.length && !partial){
+      const e=document.createElement('span'); e.className='empty';
+      e.textContent = speech ? '🎙 듣기 시작을 누르면 강의 내용이 여기에 실시간으로 적혀요.' : '여기에 받아쓴 내용이 쌓여요. 아래 칸에 직접 메모하거나 붙여넣을 수도 있어요.';
+      box.appendChild(e);
+    } else {
+      const done=document.createElement('span'); done.className='done';
+      done.textContent = state.segments.slice(0,state.processed).join(' ');
+      const pend=document.createElement('span'); pend.className='pending';
+      const p = pendingText();
+      pend.textContent = p ? (state.processed? ' ':'') + p : '';
+      const part=document.createElement('span'); part.className='partial';
+      part.textContent = partial ? ' '+partial : '';
+      box.append(done,pend,part);
+    }
+    if(nearBottom) box.scrollTop = box.scrollHeight;
+    const n = pendingText().length;
+    $('pendingInfo').textContent = n ? `정리 대기 ${n}자` : (state.segments.length ? '모두 정리됨' : '');
+  }
+
+  function mdToHtml(md){
+    try{ if(window.marked && window.DOMPurify) return DOMPurify.sanitize(marked.parse(md)); }catch(e){}
+    const d=document.createElement('div'); d.textContent=md; return '<div style="white-space:pre-wrap">'+d.innerHTML+'</div>';
+  }
+  function renderNotes(){
+    const el=$('notes');
+    if(!state.notes.trim()){
+      el.innerHTML = '<p class="notes-empty" style="margin-top:16px">아직 정리된 내용이 없어요. 받아쓰기가 쌓이면 자동으로 정리되고, <b>지금 정리</b>를 눌러 바로 정리할 수도 있어요. 강의자료를 첨부하면 용어와 맥락을 자료에 맞춰 정리해요.</p>';
+    } else el.innerHTML = mdToHtml(state.notes);
+  }
+
+  function updateButtons(){
+    const mic=$('micBtn');
+    mic.disabled = !speech;
+    mic.textContent = listening ? '⏹ 듣기 멈추기' : '🎙 듣기 시작';
+    mic.classList.toggle('rec', listening);
+    $('recDot').classList.toggle('on', listening);
+    $('lang').disabled = listening;
+    $('organizeBtn').disabled = !ai || busy || !pendingText();
+    $('finalBtn').disabled = !ai || busy || (!state.notes.trim() && !pendingText());
+  }
+
+  // ---------- lecture materials ----------
+  const LIBS = {
+    pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    pdfw: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+  };
+  const loaded = {};
+  function loadScript(src){
+    if(loaded[src]) return loaded[src];
+    loaded[src] = new Promise((res,rej)=>{
+      const s=document.createElement('script'); s.src=src; s.onload=()=>res();
+      s.onerror=()=>{ delete loaded[src]; rej(new Error('라이브러리를 불러오지 못했어')); };
+      document.head.appendChild(s);
+    });
+    return loaded[src];
+  }
+  async function pdfLib(){
+    await loadScript(LIBS.pdf);
+    await loadScript(LIBS.pdfw); // main-thread worker (cross-origin workers are blocked)
+    const lib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+    lib.GlobalWorkerOptions.workerSrc = LIBS.pdfw;
+    return lib;
+  }
+  const clean = s => s.replace(/[ \t ]+/g,' ').replace(/\n\s*\n+/g,'\n').trim();
+  async function extractPdf(file){
+    const lib = await pdfLib();
+    const base = LIBS.pdf.replace(/pdf\.min\.js$/, '');
+    const pdf = await lib.getDocument({
+      data: new Uint8Array(await file.arrayBuffer()),
+      cMapUrl: base + 'cmaps/', cMapPacked: true,          // 한글·한자 폰트용 문자표
+      standardFontDataUrl: base + 'standard_fonts/'
+    }).promise;
+    const pages = [];
+    for(let i=1;i<=pdf.numPages;i++){
+      const tc = await (await pdf.getPage(i)).getTextContent();
+      // 글자 위치로 띄어쓰기·줄바꿈 판단 (글자마다 조각난 PDF 대응)
+      let out = '', last = null;
+      for(const it of tc.items){
+        if(typeof it.str !== 'string') continue;
+        if(last){
+          const sameLine = Math.abs(it.transform[5] - last.transform[5]) < Math.max(2, (last.height||10)*0.3);
+          const gap = it.transform[4] - (last.transform[4] + (last.width||0));
+          if(!sameLine){ if(!last.hasEOL) out += '\n'; }
+          else if(gap > (it.height || last.height || 10) * 0.18 && !/\s$/.test(out) && !/^\s/.test(it.str)) out += ' ';
+        }
+        out += it.str; if(it.hasEOL) out += '\n';
+        last = it;
+      }
+      pages.push(clean(out));
+    }
+    return pages;
+  }
+  const xmlText = (xml, para, run) => {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    return Array.from(doc.getElementsByTagName(para))
+      .map(p => Array.from(p.getElementsByTagName(run)).map(t=>t.textContent).join(''))
+      .filter(Boolean).join('\n');
+  };
+  async function extractPptx(file){
+    await loadScript(LIBS.zip);
+    const zip = await JSZip.loadAsync(file);
+    const num = n => parseInt(n.match(/(\d+)\.xml$/)[1],10);
+    const names = Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a,b)=>num(a)-num(b));
+    const pages = [];
+    for(const n of names){
+      let t = xmlText(await zip.file(n).async('string'), 'a:p', 'a:t');
+      const note = zip.file('ppt/notesSlides/notesSlide'+num(n)+'.xml');
+      if(note){ const nt = xmlText(await note.async('string'), 'a:p', 'a:t').replace(/^\d+$/m,'').trim(); if(nt) t += '\n(발표자 노트) ' + nt; }
+      pages.push(clean(t));
+    }
+    return pages;
+  }
+  async function extractDocx(file){
+    await loadScript(LIBS.zip);
+    const zip = await JSZip.loadAsync(file);
+    const f = zip.file('word/document.xml'); if(!f) return [];
+    return splitText(xmlText(await f.async('string'), 'w:p', 'w:t'));
+  }
+  function splitText(text){ // ~1500-char pseudo-pages
+    const out=[]; let cur='';
+    for(const line of text.split('\n')){
+      if(cur.length + line.length > 1500 && cur){ out.push(clean(cur)); cur=''; }
+      cur += line + '\n';
+    }
+    if(cur.trim()) out.push(clean(cur));
+    return out;
+  }
+  async function extract(file){
+    const n = file.name.toLowerCase();
+    if(n.endsWith('.pdf') || file.type==='application/pdf') return extractPdf(file);
+    if(n.endsWith('.pptx')) return extractPptx(file);
+    if(n.endsWith('.docx')) return extractDocx(file);
+    if(n.endsWith('.txt') || n.endsWith('.md') || file.type.startsWith('text/')) return splitText(await file.text());
+    if(n.endsWith('.ppt') || n.endsWith('.hwp') || n.endsWith('.doc')) throw new Error('옛날 형식이라 못 읽어. PDF로 저장해서 올려줘');
+    throw new Error('지원하지 않는 파일 형식이야');
+  }
+  const unit = name => /\.(pdf|pptx)$/i.test(name) ? (/\.pptx$/i.test(name)?'슬라이드':'p') : '쪽';
+  function renderChips(loading){
+    const box = $('chips'); box.textContent='';
+    state.materials.forEach((m,i)=>{
+      const c=document.createElement('span'); c.className='chip';
+      const nm=document.createElement('span'); nm.textContent=m.name; nm.title=m.name;
+      const sm=document.createElement('small'); sm.textContent=` ${m.pages.length}${unit(m.name)}`;
+      const x=document.createElement('button'); x.textContent='×'; x.title='빼기';
+      x.onclick=()=>{ state.materials.splice(i,1); state.lastPage=-1; save(); renderChips(); };
+      c.append(nm,sm,x); box.appendChild(c);
+    });
+    (loading||[]).forEach(name=>{
+      const c=document.createElement('span'); c.className='chip loading';
+      const nm=document.createElement('span'); nm.textContent=name+' 읽는 중…'; c.appendChild(nm); box.appendChild(c);
+    });
+  }
+  let loadingNames = [];
+  async function addFiles(files){
+    for(const file of Array.from(files)){
+      if(file.size > 60*1024*1024){ toast(file.name + ': 파일이 너무 커 (60MB 이하)'); continue; }
+      loadingNames.push(file.name); renderChips(loadingNames);
+      try{
+        const pages = await extract(file);
+        const nonEmpty = pages.filter(p=>p.length>0).length;
+        if(!nonEmpty){ toast(file.name + ': 글자를 못 찾았어 (스캔 이미지 PDF일 수 있어)'); }
+        else {
+          state.materials = state.materials.filter(m=>m.name!==file.name);
+          state.materials.push({name:file.name, pages});
+          save();
+          toast(`${file.name} 첨부 완료 (${pages.length}${unit(file.name)})`);
+        }
+      }catch(e){ toast(file.name + ': ' + (e.message||'읽지 못했어')); }
+      loadingNames = loadingNames.filter(n=>n!==file.name);
+      renderChips(loadingNames);
+    }
+  }
+
+  // relevance: character bigrams (works for Korean) + English words
+  function grams(s){
+    const set = new Set();
+    for(const w of s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').split(' ')){
+      if(!w) continue;
+      if(/^[a-z0-9]+$/.test(w)){ if(w.length>=3) set.add(w); }
+      else if(w.length===1) continue;
+      else for(let i=0;i<w.length-1;i++) set.add(w.slice(i,i+2));
+    }
+    return set;
+  }
+  function allPages(){
+    const out=[];
+    state.materials.forEach(m=>m.pages.forEach((t,i)=>{ if(t) out.push({label:`${m.name} ${i+1}${unit(m.name)}`, text:t, idx:out.length}); }));
+    return out;
+  }
+  function relevantMaterial(query, budget, track){
+    const pages = allPages();
+    if(!pages.length) return '';
+    const total = pages.reduce((a,p)=>a+p.text.length,0);
+    let picked;
+    if(total <= budget) picked = pages;
+    else {
+      const q = grams(query);
+      const scored = pages.map(p=>{
+        const g = grams(p.text); let hit=0; g.forEach(x=>{ if(q.has(x)) hit++; });
+        let s = g.size ? hit/Math.sqrt(g.size) : 0;
+        if(state.lastPage>=0){ const d = p.idx - state.lastPage; if(d>=0 && d<=3) s *= 1.25; }
+        return {p, s};
+      }).sort((a,b)=>b.s-a.s);
+      picked=[]; let used=0;
+      for(const {p,s} of scored){
+        if(s<=0 && picked.length) break;
+        if(used + p.text.length > budget){ if(!picked.length){ picked.push({...p, text:p.text.slice(0,budget)}); } continue; }
+        picked.push(p); used += p.text.length;
+      }
+      if(track && scored[0] && scored[0].s>0) state.lastPage = scored[0].p.idx;
+      picked.sort((a,b)=>a.idx-b.idx);
+    }
+    return picked.map(p=>`[${p.label}]\n${p.text}`).join('\n\n');
+  }
+
+  // ---------- prompts ----------
+  function stripFence(t){
+    t = (t||'').trim();
+    const m = t.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n?```$/);
+    return m ? m[1].trim() : t;
+  }
+  const header = () => `수업: ${state.course||'(이름 없음)'}${state.topic? ' / 오늘 주제: '+state.topic : ''}`;
+  function chunkPrompt(chunk){
+    const tail = state.notes.trim() ? state.notes.slice(-2500) : '(아직 없음 — 이게 첫 정리야)';
+    const mat = relevantMaterial(chunk + ' ' + state.notes.slice(-600), 6000, true);
+    return `너는 대학 강의를 실시간으로 필기해 주는 조교야.
+${header()}
+${mat ? `
+[강의자료에서 지금 내용과 관련 있어 보이는 부분] — 용어 철자 확인과 맥락 파악용 참고자료야.
+---
+${mat}
+---
+` : ''}
+[지금까지 노트의 마지막 부분] — 맥락 파악용이니 다시 쓰지 마.
+---
+${tail}
+---
+
+[새로 받아쓴 강의 내용] — 음성인식 결과라 오타·띄어쓰기 오류·끊긴 문장이 있을 수 있어.
+---
+${chunk}
+---
+
+새 강의 내용만 필기 노트로 정리해서, 기존 노트 바로 뒤에 이어 붙일 마크다운을 출력해.
+규칙:
+- 이전 노트의 마지막 소제목과 같은 주제가 이어지면 소제목 없이 불릿만 이어서 쓰고, 새 주제로 넘어갔으면 '### 소제목'으로 시작해. 첫 정리라면 '### 소제목'으로 시작해.
+- 음성인식 오류로 보이는 고유명사와 전문 용어는 문맥${mat?'과 강의자료':''}에 맞게 바로잡아. (예: '귀엘공원' → '구엘 공원')
+- "이제", "그", "여러분 아시죠" 같은 군더더기는 빼고 내용만. 짧은 불릿과 하위 불릿으로.
+- 핵심 용어는 **굵게**. 교수님이 강조했거나 시험에 나올 만한 내용은 줄 끝에 ⭐.
+${mat ? `- 강의 내용이 자료의 특정 페이지·슬라이드와 연결되면 그 불릿 끝에 (p.N)처럼 짧게 표시해.
+- 자료 내용은 교수님 말을 이해하고 보충하는 데만 써. 교수님이 말하지 않은 자료 내용을 노트에 길게 옮기지 마.
+` : ''}- 받아쓰기에 없는 내용을 지어내지 마. 보충 설명이 꼭 필요하면 '(참고: …)'로 짧게 구분해.
+- 이전 노트에 이미 있는 내용은 반복하지 마.
+- 강의가 영어로 진행되면 영어 용어는 살리고 설명은 한국어로 써.
+- 끝부분이 문장 중간에 끊겼으면 확실한 데까지만 정리해.
+- 정리할 실질적인 내용이 없으면(잡담, 출석 등) 아무것도 출력하지 마.
+- 마크다운만 출력하고 다른 말은 하지 마.`;
+  }
+  function finalPrompt(){
+    const mat = relevantMaterial(state.notes, 20000, false);
+    return `너는 대학 강의 필기를 시험 대비용으로 마무리해 주는 조교야.
+${header()}
+
+[오늘 수업 정리 노트 전체]
+---
+${state.notes.slice(-30000) || '(없음)'}
+---
+${mat ? `
+[강의자료]
+---
+${mat}
+---
+` : ''}
+이 노트 뒤에 붙일 '최종 정리' 섹션을 마크다운으로 출력해. 형식:
+## 📌 최종 정리
+### 한눈에 요약
+(오늘 수업 흐름을 3~5개 불릿으로)
+### 핵심 용어
+| 용어 | 뜻 / 맥락 |
+(표로, 5~10개)
+### 시험 예상 문제
+(서술형·단답형 섞어서 3~5개, 각 문제 아래에 '→ 답 포인트:' 한 줄)
+${mat ? `### 자료에만 있는 내용
+(강의자료에는 있는데 수업에서 말로 다루지 않은 중요한 내용을 짧게. 없으면 이 소제목은 생략)
+` : ''}### 확인이 필요한 부분
+(받아쓰기가 불확실했거나 교수님 자료로 확인할 부분. 없으면 이 소제목은 생략)
+
+규칙: 노트${mat?'와 자료':''}에 없는 내용을 지어내지 마. 마크다운만 출력하고 다른 말은 하지 마.`;
+  }
+
+  // ---------- AI engines ----------
+  function claudeAI(sample){
+    return (prompt, {final, onProgress}) => sample(prompt, {
+      modelTier: final ? 'complex' : 'default', cache:false,
+      onText: ({text}) => onProgress && onProgress(text.length)
+    });
+  }
+  function anthropicAI(){
+    return async (prompt, {final, onProgress}) => {
+      if(!settings.apiKey){ const e = new Error('API 키가 없어'); e.code='no_key'; throw e; }
+      let res;
+      try{
+        res = await fetch('https://api.anthropic.com/v1/messages', {
+          method:'POST',
+          headers:{
+            'content-type':'application/json',
+            'x-api-key': settings.apiKey,
+            'anthropic-version':'2023-06-01',
+            'anthropic-dangerous-direct-browser-access':'true'
+          },
+          body: JSON.stringify({ model: settings.model, max_tokens: final ? 4000 : 2000, messages:[{role:'user', content: prompt}] })
+        });
+      }catch(err){ const e = new Error('네트워크 오류'); e.code='network'; throw e; }
+      if(!res.ok){
+        let msg=''; try{ const j = await res.json(); msg = (j.error && j.error.message) || ''; }catch(_){}
+        const e = new Error(msg || ('HTTP '+res.status));
+        e.code = res.status===401 ? 'bad_key' : (res.status===429 || res.status===529 || res.status===503) ? 'rate_limited' : res.status===400 && /credit|balance/i.test(msg) ? 'no_credit' : 'http';
+        throw e;
+      }
+      const j = await res.json();
+      const text = (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+      onProgress && onProgress(text.length);
+      return { text, truncated: j.stop_reason === 'max_tokens' };
+    };
+  }
+
+  // ---------- organize ----------
+  async function organize(final){
+    if(!ai || busy) return;
+    if(Date.now() < backoffUntil && !final) return;
+    const upto = state.segments.length;
+    const chunk = pendingText();
+    if(!final && !chunk) return;
+    busy = true; updateButtons();
+    $('working').classList.add('show');
+    const label = t => { $('workingText').textContent = t; };
+    label(final ? '최종 정리 만드는 중…' : '새 내용 정리 중…');
+    try{
+      if(final && chunk){
+        const r0 = await ai(chunkPrompt(chunk), {final:false, onProgress:n=>label(`남은 내용 정리 중… ${n}자`)});
+        appendNotes(stripFence(r0.text)); state.processed = upto; save(); renderTranscript();
+      }
+      const res = await ai(final ? finalPrompt() : chunkPrompt(chunk), {final, onProgress:n=>label((final?'최종 정리 작성 중… ':'정리 중… ')+n+'자')});
+      appendNotes(stripFence(res.text));
+      if(!final) state.processed = upto;
+      if(res.truncated) toast('정리가 길어서 일부가 잘렸을 수 있어');
+      save();
+      $('noteStatus').textContent = nowStr() + ' 업데이트';
+      notice('');
+    }catch(e){
+      const code = e && e.code;
+      if(code === 'not_granted'){ ai = null; notice('AI 정리 권한이 거절돼서 자동 정리가 꺼졌어. 받아쓰기와 직접 메모는 계속 쓸 수 있어.'); }
+      else if(code === 'no_key'){ notice('AI 정리를 하려면 ⚙ 설정에서 Claude API 키를 넣어줘.'); openSettings(); backoffUntil = Date.now()+60000; }
+      else if(code === 'bad_key'){ notice('API 키가 맞지 않아. ⚙ 설정에서 키를 확인해줘.'); backoffUntil = Date.now()+300000; }
+      else if(code === 'no_credit'){ notice('API 크레딧이 부족해. Anthropic 콘솔에서 결제 정보를 확인해줘.'); backoffUntil = Date.now()+300000; }
+      else if(code === 'rate_limited'){ backoffUntil = Date.now()+120000; toast('요청이 많아서 2분 쉬었다가 다시 정리할게'); }
+      else { backoffUntil = Date.now()+30000; toast('정리 실패: ' + ((e && e.message) || '알 수 없는 오류')); }
+    }finally{
+      busy = false; lastRun = Date.now();
+      $('working').classList.remove('show');
+      renderNotes(); renderTranscript(); updateButtons();
+    }
+  }
+  function appendNotes(md){
+    md = (md||'').trim();
+    if(!md) return;
+    state.notes = state.notes.trim() ? state.notes.trimEnd() + '\n\n' + md : md;
+    if(editing) $('notesEdit').value = state.notes;
+  }
+  setInterval(()=>{
+    if(!ai || busy) return;
+    const sec = parseInt($('interval').value,10);
+    const n = pendingText().length;
+    if(!n) return;
+    if(n > 2500 || (sec > 0 && Date.now() - lastRun >= sec*1000)) organize(false);
+  }, 5000);
+
+  // ---------- speech engines ----------
+  function webSpeech(){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR) return null;
+    let rec = null, want = false, fails = 0;
+    const h = {};
+    const emit = (k,v) => h[k] && h[k](v);
+    function make(){
+      rec = new SR();
+      rec.lang = settings.lang || 'ko-KR';
+      rec.continuous = true; rec.interimResults = true;
+      rec.onstart = () => { fails = 0; emit('state',{state:'listening'}); };
+      rec.onresult = e => {
+        let interim = '';
+        for(let i=e.resultIndex;i<e.results.length;i++){
+          const r = e.results[i];
+          if(r.isFinal) emit('final',{text:r[0].transcript}); else interim += r[0].transcript;
+        }
+        emit('partial',{text:interim});
+      };
+      rec.onerror = e => {
+        if(e.error==='not-allowed' || e.error==='service-not-allowed'){ want=false; emit('state',{state:'idle',reason:'not_granted'}); }
+        else if(e.error==='audio-capture'){ want=false; emit('state',{state:'idle',reason:'no_mic'}); }
+      };
+      rec.onend = () => {
+        if(want && fails < 20){
+          fails++;
+          setTimeout(()=>{ if(!want) return; try{ make(); rec.start(); }catch(_){ emit('state',{state:'idle',reason:'error'}); } }, fails>3 ? 1000 : 150);
+        } else if(want){ want=false; emit('state',{state:'idle',reason:'error'}); }
+        else emit('state',{state:'idle',reason:'stopped'});
+      };
+    }
+    return {
+      start(){ want = true; fails = 0; make(); try{ rec.start(); return Promise.resolve(); }catch(e){ want=false; return Promise.reject(e); } },
+      stop(){ want = false; try{ rec && rec.stop(); }catch(_){} return new Promise(r=>setTimeout(r,400)); },
+      onPartial(f){ h.partial=f; }, onFinal(f){ h.final=f; }, onState(f){ h.state=f; }
+    };
+  }
+
+  function onMicClick(){
+    if(!speech) return;
+    if(listening){
+      speech.stop().catch(()=>{}).then(()=>{ if(pendingText() && ai) organize(false); });
+      return;
+    }
+    speech.start().catch(err=>{
+      const code = err && (err.code || err.message);
+      if(code === 'not_granted'){ micDenied(); }
+      else if(code === 'dismissed'){ toast('마이크 허용 창이 닫혔어. 다시 눌러줘'); }
+      else toast('받아쓰기를 시작하지 못했어: ' + (code||''));
+    });
+  }
+  function micDenied(){
+    notice('마이크 사용이 거절됐어. 아래 칸에 직접 메모하거나 다른 앱 받아쓰기를 붙여넣어 줘.');
+    speech = null; listening = false; updateButtons(); renderTranscript();
+  }
+  function setupSpeech(s){
+    speech = s;
+    if(!s){
+      $('status').textContent = '받아쓰기 사용 불가';
+      notice('이 브라우저에서는 실시간 받아쓰기를 쓸 수 없어. Chrome이나 Edge에서 열어줘. 그동안은 아래 칸에 직접 메모하거나 붙여넣으면 정리해 줄게.');
+      updateButtons(); renderTranscript(); return;
+    }
+    s.onPartial(({text})=>{ partial = text||''; renderTranscript(); });
+    s.onFinal(({text})=>{
+      partial = '';
+      const t = (text||'').trim();
+      if(t){ state.segments.push(t); save(); }
+      renderTranscript(); updateButtons();
+    });
+    s.onState(({state:st, reason})=>{
+      listening = st === 'listening';
+      if(listening) $('status').textContent = '듣는 중…';
+      else {
+        partial = '';
+        if(reason === 'not_granted'){ micDenied(); return; }
+        if(reason === 'no_mic'){ $('status').textContent='마이크 없음'; toast('마이크를 찾지 못했어'); }
+        else if(reason === 'hidden'){ $('status').textContent = '화면을 벗어나서 멈췄어'; toast('다른 창으로 가서 받아쓰기가 멈췄어. 다시 시작을 눌러줘'); }
+        else if(reason === 'error'){ $('status').textContent = '연결이 끊겨 멈춤'; toast('받아쓰기가 끊겼어. 다시 시작을 눌러줘'); }
+        else if(reason && reason !== 'stopped' && reason !== 'viewer_stopped') $('status').textContent = '멈춤 (' + reason + ')';
+        else $('status').textContent = '멈춤';
+      }
+      renderTranscript(); updateButtons();
+    });
+    $('status').textContent = '대기 중';
+    updateButtons(); renderTranscript();
+  }
+
+  // ---------- settings modal (web mode) ----------
+  function openSettings(){
+    $('apiKey').value = settings.apiKey; $('model').value = settings.model;
+    $('settingsModal').classList.add('show'); setTimeout(()=>$('apiKey').focus(), 50);
+  }
+  function closeSettings(){ $('settingsModal').classList.remove('show'); }
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('closeSettings').addEventListener('click', closeSettings);
+  $('settingsModal').addEventListener('click', e=>{ if(e.target.id==='settingsModal') closeSettings(); });
+  $('saveSettings').addEventListener('click', ()=>{
+    settings.apiKey = $('apiKey').value.trim(); settings.model = $('model').value;
+    saveSettings(); closeSettings(); backoffUntil = 0;
+    if(settings.apiKey){ notice(''); toast('저장했어'); } updateButtons();
+  });
+  $('clearKey').addEventListener('click', ()=>{ settings.apiKey=''; $('apiKey').value=''; saveSettings(); toast('키를 지웠어'); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSettings(); });
+
+  // ---------- wire up ----------
+  load();
+  $('course').value = state.course; $('topic').value = state.topic;
+  $('interval').value = settings.interval || '120';
+  $('lang').value = settings.lang || 'ko-KR';
+  $('course').addEventListener('input', e=>{ state.course=e.target.value; save(); });
+  $('topic').addEventListener('input', e=>{ state.topic=e.target.value; save(); });
+  $('interval').addEventListener('change', e=>{ settings.interval=e.target.value; saveSettings(); });
+  $('lang').addEventListener('change', e=>{ settings.lang=e.target.value; saveSettings(); });
+  $('micBtn').addEventListener('click', onMicClick);
+  $('organizeBtn').addEventListener('click', ()=>{ backoffUntil = 0; organize(false); });
+  $('finalBtn').addEventListener('click', ()=>organize(true));
+
+  $('attachBtn').addEventListener('click', ()=>$('fileInput').click());
+  $('fileInput').addEventListener('change', e=>{ addFiles(e.target.files); e.target.value=''; });
+  let dragDepth = 0;
+  window.addEventListener('dragenter', e=>{ if(e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')){ dragDepth++; document.body.classList.add('drag'); } });
+  window.addEventListener('dragleave', ()=>{ dragDepth=Math.max(0,dragDepth-1); if(!dragDepth) document.body.classList.remove('drag'); });
+  window.addEventListener('dragover', e=>e.preventDefault());
+  window.addEventListener('drop', e=>{ e.preventDefault(); dragDepth=0; document.body.classList.remove('drag'); if(e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+
+  $('addManual').addEventListener('click', ()=>{
+    const v = $('manualText').value.trim(); if(!v) return;
+    state.segments.push(v); save(); $('manualText').value='';
+    renderTranscript(); updateButtons();
+  });
+  $('manualText').addEventListener('keydown', e=>{ if(e.key==='Enter' && (e.metaKey||e.ctrlKey)) $('addManual').click(); });
+
+  $('editBtn').addEventListener('click', ()=>{
+    editing = !editing;
+    $('notesEdit').style.display = editing ? 'block' : 'none';
+    $('notesWrap').style.display = editing ? 'none' : 'block';
+    $('editBtn').textContent = editing ? '완료' : '편집';
+    if(editing) $('notesEdit').value = state.notes;
+    else { state.notes = $('notesEdit').value; save(); renderNotes(); updateButtons(); }
+  });
+  $('notesEdit').addEventListener('input', e=>{ state.notes = e.target.value; save(); });
+
+  $('copyBtn').addEventListener('click', ()=>{
+    if(!state.notes.trim()){ toast('아직 복사할 노트가 없어'); return; }
+    const text = (state.course? '# '+state.course+(state.topic?' — '+state.topic:'')+'\n\n' : '') + state.notes;
+    navigator.clipboard.writeText(text).then(()=>toast('노트를 복사했어 (마크다운)'))
+      .catch(()=>{
+        if(!editing) $('editBtn').click();
+        const ta=$('notesEdit'); ta.focus(); ta.select();
+        toast('자동 복사가 막혀서 전체 선택해 뒀어. Ctrl/Cmd+C로 복사해줘');
+      });
+  });
+
+  let newArm = 0;
+  $('newBtn').addEventListener('click', ()=>{
+    const b=$('newBtn');
+    if(Date.now() - newArm > 3000){
+      newArm = Date.now(); b.textContent='정말 지울까? 한 번 더'; b.classList.add('danger');
+      setTimeout(()=>{ b.textContent='새 수업'; b.classList.remove('danger'); }, 3000);
+      return;
+    }
+    newArm = 0; b.textContent='새 수업'; b.classList.remove('danger');
+    if(listening && speech) speech.stop().catch(()=>{});
+    state = { course: state.course, topic:'', segments:[], processed:0, notes:'', materials:[], lastPage:-1 };
+    $('topic').value=''; save(); renderTranscript(); renderNotes(); renderChips(); updateButtons();
+    $('noteStatus').textContent=''; toast('새 수업을 시작했어 (강의자료도 비웠어)');
+  });
+
+  renderTranscript(); renderNotes(); renderChips(); updateButtons();
+
+  // ---------- pick mode ----------
+  function webMode(){
+    mode = 'web'; document.body.classList.add('web');
+    setupSpeech(webSpeech());
+    ai = anthropicAI();
+    if(!settings.apiKey) notice('AI 정리를 쓰려면 ⚙ 설정에서 본인 Claude API 키를 넣어줘. 키 없이도 받아쓰기는 돼.');
+    updateButtons();
+  }
+  if(window.claude && typeof window.claude.use === 'function'){
+    mode = 'claude';
+    window.claude.use('dictation').then(setupSpeech).catch(()=>setupSpeech(null));
+    window.claude.use('sample').then(s=>{
+      ai = s ? claudeAI(s) : null;
+      if(!s) notice('이 화면에서는 AI 정리를 쓸 수 없어.');
+      updateButtons();
+    }).catch(()=>{ ai=null; updateButtons(); });
+  } else webMode();
+})();
+</script>
+</body>
+</html>
