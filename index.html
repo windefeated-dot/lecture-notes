@@ -402,6 +402,21 @@
   let speech = null, ai = null;   // engines
   let sampleRaw = null;           // claude.ai sample (사진 읽기용)
   let listening = false, partial = '';
+  // 녹음 중 아직 '확정' 안 된 글(partial) 중 이미 정리 대기로 옮긴 글자 수
+  let partialCommitted = 0;
+  const livePartial = () => partial.slice(partialCommitted);
+  // 확정 전 글도 정리할 수 있게 대기열로 옮김 (단어 중간에서 자르지 않음)
+  function commitPartial(minChars, whole){
+    const rest = partial.slice(partialCommitted);
+    if(rest.trim().length < (minChars||1)) return false;
+    let cut = rest.length;
+    if(!whole){ const sp = rest.lastIndexOf(' '); if(sp > 20) cut = sp; }
+    const piece = rest.slice(0, cut).trim();
+    if(!piece) return false;
+    state.segments.push(piece); partialCommitted += cut; save();
+    return true;
+  }
+  const hasPending = () => !!pendingText() || livePartial().trim().length > 0;
   let busy = false, backoffUntil = 0, lastRun = Date.now(), editing = false;
 
   // ---------- storage: IndexedDB per lecture (falls back to memory) ----------
@@ -477,7 +492,7 @@
     const box=$('transcript');
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
     box.textContent='';
-    if(!state.segments.length && !partial){
+    if(!state.segments.length && !livePartial()){
       const e=document.createElement('span'); e.className='empty';
       e.textContent = speech ? '🎙 듣기 시작을 누르면 강의 내용이 여기에 실시간으로 적혀요.' : '여기에 받아쓴 내용이 쌓여요. 아래 칸에 직접 메모하거나 붙여넣을 수도 있어요.';
       box.appendChild(e);
@@ -488,7 +503,7 @@
       const p = pendingText();
       pend.textContent = p ? (state.processed? ' ':'') + p : '';
       const part=document.createElement('span'); part.className='partial';
-      part.textContent = partial ? ' '+partial : '';
+      part.textContent = livePartial() ? ' '+livePartial() : '';
       box.append(done,pend,part);
     }
     if(nearBottom) box.scrollTop = box.scrollHeight;
@@ -564,7 +579,7 @@
   function renderAll(){
     $('course').value = state.course; $('topic').value = state.topic;
     if(editing){ editing = false; $('notesEdit').style.display='none'; $('notesWrap').style.display='block'; $('editBtn').textContent='편집'; }
-    partial = ''; $('noteStatus').textContent = '';
+    partial = ''; partialCommitted = 0; $('noteStatus').textContent = '';
     renderLectureList(); renderTranscript(); renderNotes(); renderChips(loadingNames); updateButtons(); renderCourseList(); renderSlotHint();
     if(!$('library').hidden) renderLibrary();
   }
@@ -582,8 +597,8 @@
     mic.classList.toggle('rec', listening);
     $('recDot').classList.toggle('on', listening);
     $('lang').disabled = listening;
-    $('organizeBtn').disabled = !ai || busy || !pendingText();
-    $('finalBtn').disabled = !ai || busy || (!state.notes.trim() && !pendingText());
+    $('organizeBtn').disabled = !ai || busy || !hasPending();
+    $('finalBtn').disabled = !ai || busy || (!state.notes.trim() && !hasPending());
   }
 
   // ---------- lecture materials ----------
@@ -1040,9 +1055,12 @@ ${mat ? `### 자료에만 있는 내용
   setInterval(()=>{
     if(!ai || busy) return;
     const sec = parseInt($('interval').value,10);
+    const due = sec > 0 && Date.now() - lastRun >= sec*1000;
+    // 긴 연설이 확정되지 않고 계속 이어지면, 정리할 때가 됐거나 길어졌을 때 대기열로 옮김
+    if(listening && (due || livePartial().length > 1200)) commitPartial(due ? 30 : 1);
     const n = pendingText().length;
     if(!n) return;
-    if(n > 2500 || (sec > 0 && Date.now() - lastRun >= sec*1000)) organize(false);
+    if(n > 2500 || due) organize(false);
   }, 5000);
 
   // ---------- speech engines ----------
@@ -1109,10 +1127,16 @@ ${mat ? `### 자료에만 있는 내용
       notice('이 브라우저에서는 실시간 받아쓰기를 쓸 수 없어. Chrome이나 Edge에서 열어줘. 그동안은 아래 칸에 직접 메모하거나 붙여넣으면 정리해 줄게.');
       updateButtons(); renderTranscript(); return;
     }
-    s.onPartial(({text})=>{ partial = text||''; renderTranscript(); });
+    s.onPartial(({text})=>{
+      partial = text||'';
+      if(partial.length < partialCommitted) partialCommitted = 0;   // 새 문장이 시작됨
+      renderTranscript(); updateButtons();
+    });
     s.onFinal(({text})=>{
+      const full = text||'';
+      const t = full.slice(Math.min(partialCommitted, full.length)).trim();   // 이미 옮긴 앞부분은 빼고
+      partialCommitted = Math.max(0, partialCommitted - full.length);
       partial = '';
-      const t = (text||'').trim();
       if(t){ state.segments.push(t); save(); }
       renderTranscript(); updateButtons();
     });
@@ -1120,7 +1144,8 @@ ${mat ? `### 자료에만 있는 내용
       listening = st === 'listening';
       if(listening) $('status').textContent = '듣는 중…';
       else {
-        partial = '';
+        commitPartial(1, true);          // 멈출 때 확정 안 된 글도 버리지 않음
+        partial = ''; partialCommitted = 0;
         if(reason === 'not_granted'){ micDenied(); return; }
         if(reason === 'no_mic'){ $('status').textContent='마이크 없음'; toast('마이크를 찾지 못했어'); }
         else if(reason === 'hidden'){ $('status').textContent = '화면을 벗어나서 멈췄어'; toast('다른 창으로 가서 받아쓰기가 멈췄어. 다시 시작을 눌러줘'); }
@@ -1250,8 +1275,8 @@ ${mat ? `### 자료에만 있는 내용
   $('interval').addEventListener('change', e=>{ settings.interval=e.target.value; saveSettings(); });
   $('lang').addEventListener('change', e=>{ settings.lang=e.target.value; saveSettings(); });
   $('micBtn').addEventListener('click', onMicClick);
-  $('organizeBtn').addEventListener('click', ()=>{ backoffUntil = 0; organize(false); });
-  $('finalBtn').addEventListener('click', ()=>organize(true));
+  $('organizeBtn').addEventListener('click', ()=>{ backoffUntil = 0; commitPartial(1, true); organize(false); });
+  $('finalBtn').addEventListener('click', ()=>{ commitPartial(1, true); organize(true); });
 
   $('attachBtn').addEventListener('click', ()=>$('fileInput').click());
   $('fileInput').addEventListener('change', e=>{ addFiles(e.target.files); e.target.value=''; });
