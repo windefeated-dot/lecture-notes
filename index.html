@@ -4,10 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>실시간 강의 노트</title>
+<meta name="description" content="수업을 실시간으로 받아쓰고 AI가 정리 노트를 써주는 무료 웹 앱. 시험·과제 자동 표시, 강의자료 참고, PDF·Word 내보내기.">
+<meta name="theme-color" content="#3b4cca">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="강의노트">
+<!-- 카카오톡·SNS 링크 미리보기 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="실시간 강의 노트">
+<meta property="og:title" content="실시간 강의 노트">
+<meta property="og:description" content="수업을 받아쓰고, AI가 정리 노트를 써줘요. 시험·과제 자동 표시 · 강의자료 참고 · PDF/Word 내보내기">
+<meta property="og:url" content="https://notes.dailyradar.app/">
+<meta property="og:image" content="https://notes.dailyradar.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<!-- 프로그램 조각은 이 사이트에 직접 둠 (외부 서버가 해킹돼도 API 키가 새지 않게). 파일이 없을 때만 CDN 사용 -->
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/purify.min.js"></script>
 <style>
   :root{
     --bg:#f6f4ef; --panel:#fffdf9; --ink:#22211f; --muted:#7a766d; --line:#e4dfd4;
@@ -76,6 +96,10 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#2a2925;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;text-align:center;z-index:30}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .tip{margin:0 18px 10px;padding:9px 13px;border-radius:10px;background:#eef6ff;color:#1f4e8c;font-size:13px;display:none;align-items:flex-start;gap:8px}
+  .tip.show{display:flex}
+  .tip span{flex:1}
+  .tip button{border:0;background:transparent;color:#1f4e8c;font-size:16px;padding:0 4px;line-height:1.2}
   .notice{margin:0 18px 10px;padding:9px 13px;border-radius:10px;background:#fdecea;color:#8a2a24;font-size:13px;display:none}
   .notice.show{display:block}
   .modal-bg{position:fixed;inset:0;background:rgba(30,28,24,.4);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
@@ -201,7 +225,9 @@
     .tt-row > input:first-child{grid-column:1 / -1}
   }
   @media (max-width:760px){
-    main{grid-template-columns:1fr;grid-template-rows:minmax(220px,38vh) minmax(320px,1fr)}
+    html,body{height:auto}
+    body{min-height:100vh}
+    main{flex:none;grid-template-columns:1fr;grid-template-rows:minmax(260px,42vh) minmax(380px,auto)}
     header,.toolbar,.materials{padding-left:12px;padding-right:12px}
     main{padding:0 12px 12px}
     .toolbar .spacer{display:none}
@@ -258,6 +284,7 @@
   <button class="attach" id="attachBtn">+ PDF · PPTX · DOCX · TXT 첨부</button>
   <input type="file" id="fileInput" multiple accept=".pdf,.pptx,.docx,.txt,.md,application/pdf" hidden>
 </div>
+<div class="tip" id="iosTip"><span>📱 <b>아이폰이라면</b> Safari 아래 <b>공유 → 홈 화면에 추가</b>로 열어줘. Safari는 한동안 안 들어간 사이트의 저장 데이터를 지울 수 있어서, 홈 화면 앱으로 쓰고 가끔 💾 백업하는 게 안전해.</span><button id="iosTipX" title="닫기">×</button></div>
 <div class="notice" id="notice"></div>
 <main>
   <section class="panel">
@@ -348,12 +375,12 @@
     <div id="claudeBox">
       <label for="apiKey">Claude API 키</label>
       <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off">
-      <p style="margin-top:6px">키 발급: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> · 사용료는 Claude 구독과 별도예요.</p>
+      <p style="margin-top:6px">키 발급: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> · 사용료는 Claude 구독과 별도예요.<br>💡 처음이라면 Anthropic 콘솔의 <b>Limits(사용 한도)</b>에서 월 한도를 걸어두세요. 키가 새거나 실수해도 그 이상은 청구되지 않아요. 키는 남에게 보내지 마세요.</p>
       <label for="model">모델</label>
       <select id="model">
-        <option value="claude-sonnet-5-5">Sonnet 5.5 — 추천 (정확도·속도 균형)</option>
-        <option value="claude-haiku-5-5">Haiku 5.5 — 가장 저렴하고 빠름</option>
-        <option value="claude-opus-5-5">Opus 5.5 — 가장 정교함 (비쌈)</option>
+        <option value="claude-haiku-5-5">Haiku 5.5 — 추천 · 강의 1개에 약 40~70원</option>
+        <option value="claude-sonnet-5-5">Sonnet 5.5 — 더 꼼꼼함 · 강의 1개에 약 750~1,400원</option>
+        <option value="claude-opus-5-5">Opus 5.5 — 가장 정교함 · 가장 비쌈</option>
       </select>
     </div>
     <div id="geminiBox" hidden>
@@ -372,7 +399,7 @@
   </div>
 </div>
 <footer class="foot" id="foot">
-  <span>🎙 강의를 녹음하기 전에 교수님 동의를 받아주세요</span><span>노트는 이 기기 브라우저에만 저장돼요 (💾 백업 권장)</span><span class="webonly" id="footGoogle">Chrome 음성인식은 소리를 구글 서버로 보내 글자로 바꿔요</span><span class="webonly" id="footKey">AI 정리는 본인 API 키(Claude 또는 Gemini)가 있어야 쓸 수 있어요</span>
+  <span>🎙 강의를 녹음하기 전에 교수님 동의를 받아주세요</span><span>노트는 이 기기 브라우저에만 저장돼요 (💾 백업 권장)</span><span class="webonly" id="footGoogle">Chrome 음성인식은 소리를 구글 서버로 보내 글자로 바꿔요</span><span class="webonly" id="footKey">AI 정리는 본인 API 키(Claude 또는 Gemini)가 있어야 쓸 수 있어요</span><span><a href="about.html" target="_blank" rel="noopener" style="color:inherit">이용 안내 · 개인정보</a></span>
 </footer>
 <div class="menu" id="exportMenu" role="menu"></div>
 <div id="printArea"></div>
@@ -397,7 +424,7 @@
   }
   let lectures = new Map();       // id -> lecture
   let state = blankLecture();     // current lecture
-  let settings = { provider:'claude', apiKey:'', model:'claude-sonnet-5-5', geminiKey:'', geminiModel:'', geminiModels:[], lang:'ko-KR', interval:'120', timetable:[] };
+  let settings = { provider:'claude', apiKey:'', model:'claude-haiku-5-5', geminiKey:'', geminiModel:'', geminiModels:[], lang:'ko-KR', interval:'120', timetable:[] };
   let mode = 'pending';           // 'claude' | 'web'
   let speech = null, ai = null;   // engines
   let sampleRaw = null;           // claude.ai sample (사진 읽기용)
@@ -602,32 +629,47 @@
   }
 
   // ---------- lecture materials ----------
+  // [이 사이트의 파일, 없을 때 쓸 CDN] — 버전 고정
   const LIBS = {
-    pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-    pdfw: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
-    zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+    marked: ['vendor/marked.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js'],
+    purify: ['vendor/purify.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js'],
+    pdf:    ['vendor/pdfjs/pdf.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'],
+    pdfw:   ['vendor/pdfjs/pdf.worker.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'],
+    zip:    ['vendor/jszip.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'],
+    h2c:    ['vendor/html2canvas.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'],
+    jspdf:  ['vendor/jspdf.umd.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js']
   };
   const loaded = {};
-  function loadScript(src){
-    if(loaded[src]) return loaded[src];
-    loaded[src] = new Promise((res,rej)=>{
-      const s=document.createElement('script'); s.src=src; s.onload=()=>res();
-      s.onerror=()=>{ delete loaded[src]; rej(new Error('라이브러리를 불러오지 못했어')); };
+  function loadOne(src){
+    return new Promise((res,rej)=>{
+      const s=document.createElement('script'); s.src=src; s.onload=()=>res(src);
+      s.onerror=()=>{ s.remove(); rej(new Error('라이브러리를 불러오지 못했어')); };
       document.head.appendChild(s);
     });
-    return loaded[src];
   }
+  // 목록 순서대로 시도하고, 성공한 주소를 돌려줌
+  function loadScript(list){
+    const key = [].concat(list).join('|');
+    if(loaded[key]) return loaded[key];
+    loaded[key] = [].concat(list).reduce((p, src) => p.catch(() => loadOne(src)), Promise.reject())
+      .catch(e => { delete loaded[key]; throw e; });
+    return loaded[key];
+  }
+  // 머리말에서 못 불러온 경우(예: HTML 파일만 따로 연 경우)에만 CDN으로 다시 시도
+  if(!window.marked) loadScript([LIBS.marked[1]]).then(()=>{ try{ renderNotes(); }catch(_){} }).catch(()=>{});
+  if(!window.DOMPurify) loadScript([LIBS.purify[1]]).then(()=>{ try{ renderNotes(); }catch(_){} }).catch(()=>{});
   async function pdfLib(){
-    await loadScript(LIBS.pdf);
-    await loadScript(LIBS.pdfw); // main-thread worker (cross-origin workers are blocked)
+    const pdfSrc = await loadScript(LIBS.pdf);
+    const pdfwSrc = await loadScript(LIBS.pdfw); // main-thread worker (cross-origin workers are blocked)
     const lib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
-    lib.GlobalWorkerOptions.workerSrc = LIBS.pdfw;
+    lib.GlobalWorkerOptions.workerSrc = pdfwSrc;
+    lib.__base = new URL(pdfSrc, location.href).href.replace(/pdf\.min\.js$/, '');
     return lib;
   }
   const clean = s => s.replace(/[ \t ]+/g,' ').replace(/\n\s*\n+/g,'\n').trim();
   async function extractPdf(file){
     const lib = await pdfLib();
-    const base = LIBS.pdf.replace(/pdf\.min\.js$/, '');
+    const base = lib.__base;
     const pdf = await lib.getDocument({
       data: new Uint8Array(await file.arrayBuffer()),
       cMapUrl: base + 'cmaps/', cMapPacked: true,          // 한글·한자 폰트용 문자표
@@ -1565,8 +1607,8 @@ JSON 배열만 출력해 (다른 말 없이):
     }
     toast('PDF 만드는 중…');
     try{
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      await loadScript(LIBS.h2c);
+      await loadScript(LIBS.jspdf);
       const box = document.createElement('div');
       box.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;padding:36px 40px;background:#fff';
       box.innerHTML = printHTML(d); document.body.appendChild(box);
@@ -1904,8 +1946,19 @@ JSON 배열만 출력해 (다른 말 없이):
   window.addEventListener('hashchange', ()=>{ if(location.hash === '#library') openLibrary(); else if(!$('library').hidden) closeLibrary(true); });
 
   // ---------- pick mode ----------
+  function protectStorage(){
+    // 브라우저가 공간이 부족할 때 이 사이트 데이터를 먼저 지우지 않게 요청
+    try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => { if(!p) navigator.storage.persist().catch(()=>{}); }).catch(()=>{}); }catch(_){}
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    let dismissed = false; try{ dismissed = localStorage.getItem('lecture-notes-iostip') === '1'; }catch(_){}
+    if(isIOS && !standalone && !dismissed) $('iosTip').classList.add('show');
+    $('iosTipX').addEventListener('click', ()=>{ $('iosTip').classList.remove('show'); try{ localStorage.setItem('lecture-notes-iostip','1'); }catch(_){} });
+  }
   function webMode(){
     mode = 'web'; document.body.classList.add('web');
+    protectStorage();
     setupSpeech(webSpeech());
     ai = anthropicAI();
     if(!hasKey()) notice('AI 정리를 쓰려면 ⚙ 설정에서 본인 API 키(Claude 또는 무료 Gemini)를 넣어줘. 키 없이도 받아쓰기는 돼.');

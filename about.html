@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이용 안내 · 개인정보 — 실시간 강의 노트</title>
+<meta name="description" content="실시간 강의 노트의 이용 안내와 개인정보 처리 안내">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  body{margin:0;background:#f6f4ef;color:#22211f;font-family:"Noto Sans KR",system-ui,sans-serif;line-height:1.75;font-size:15.5px}
+  main{max-width:720px;margin:0 auto;padding:32px 20px 60px}
+  h1{font-size:26px;margin:0 0 4px}
+  .sub{color:#7a766d;font-size:14px;margin-bottom:28px}
+  h2{font-size:18px;margin:30px 0 8px;padding-bottom:4px;border-bottom:2px solid #e8ebff}
+  ul{padding-left:22px} li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}
+  th,td{border:1px solid #e4dfd4;padding:7px 10px;text-align:left;vertical-align:top} th{background:#f3f0e8}
+  .box{background:#fff6f3;border:1.5px solid #f0b4a9;border-radius:12px;padding:12px 16px;margin:14px 0}
+  a{color:#3b4cca} .back{display:inline-block;margin-bottom:18px;font-size:14px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← 강의 노트로 돌아가기</a>
+  <h1>이용 안내 · 개인정보</h1>
+  <div class="sub">실시간 강의 노트 (notes.dailyradar.app) · 최종 수정 2026년 11월 17일</div>
+
+  <div class="box"><b>요약:</b> 이 사이트는 서버에 아무것도 저장하지 않아요. 노트·시간표·API 키는 <b>여러분 기기의 브라우저 안에만</b> 저장되고, 받아쓰기와 AI 정리를 위해 필요한 내용만 여러분이 고른 회사(구글, Anthropic)로 직접 전송돼요.</div>
+
+  <h2>어떤 서비스인가요</h2>
+  <p>수업을 들으면서 소리를 글로 받아쓰고, AI가 그 글을 필기 노트로 정리해 주는 무료 웹 앱이에요. 개인이 만든 비영리 프로젝트이며, Anthropic·Google·연세대학교 등 어떤 회사·기관과도 관련이 없어요.</p>
+
+  <h2>데이터는 어디로 가나요</h2>
+  <table>
+    <tr><th>무엇</th><th>어디로</th><th>왜</th></tr>
+    <tr><td>마이크 소리</td><td>Google (Chrome 음성인식 서버)</td><td>소리를 글로 받아쓰기 위해. 소리는 이 사이트에 저장되지 않아요.</td></tr>
+    <tr><td>받아쓴 글 · 강의자료 일부 · 시간표 사진</td><td>설정에서 고른 AI 회사 (Anthropic 또는 Google)</td><td>노트 정리, 중요 항목 표시, 시간표 읽기를 위해</td></tr>
+    <tr><td>노트 · 시간표 · 강의자료 내용 · API 키</td><td>여러분 브라우저 안 (기기 밖으로 나가지 않음)</td><td>다음에 다시 보기 위해</td></tr>
+  </table>
+  <ul>
+    <li>운영자는 여러분의 노트, 녹음, API 키를 볼 수도, 받을 수도 없어요. 방문자 수 집계나 광고 추적도 하지 않아요.</li>
+    <li>AI 회사로 보낸 내용은 각 회사의 정책을 따라요. 특히 <b>Gemini 무료 등급</b>은 보낸 내용이 구글 제품 개선에 쓰일 수 있어요. (<a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API 약관</a>, <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener">Anthropic 개인정보 처리방침</a>)</li>
+    <li>브라우저 데이터를 지우거나 기기를 바꾸면 노트가 사라져요. <b>📚 노트함 → 💾 백업</b>으로 가끔 저장해 두세요. 아이폰 Safari는 오래 안 쓴 사이트의 데이터를 지울 수 있으니 홈 화면에 추가해서 쓰는 걸 권해요.</li>
+  </ul>
+
+  <h2>API 키 안내</h2>
+  <ul>
+    <li>AI 정리는 <b>본인의 API 키</b>로 동작해요. 사용료는 키 주인에게 직접 청구되고, Claude 구독(Pro 등)과는 별개예요.</li>
+    <li>Anthropic 콘솔이나 Google AI Studio에서 <b>월 사용 한도</b>를 걸어두세요. 키를 남에게 보내거나 공개된 곳에 올리지 마세요.</li>
+    <li>키는 이 브라우저에만 저장되며, 설정에서 언제든 지울 수 있어요.</li>
+  </ul>
+
+  <h2>녹음과 저작권</h2>
+  <ul>
+    <li><b>녹음하기 전에 교수님께 동의를 받아주세요.</b> 학교·수업마다 녹음 규정이 다를 수 있어요.</li>
+    <li>강의 내용과 강의자료의 저작권은 교수님(또는 저작권자)에게 있어요. 만든 노트는 <b>개인 학습용으로만</b> 쓰고, 녹음·노트·강의자료를 다른 곳에 올리거나 판매하지 마세요.</li>
+    <li>다른 학생의 발언이 받아써질 수 있으니 노트를 공유할 땐 주의해 주세요.</li>
+  </ul>
+
+  <h2>책임의 한계</h2>
+  <ul>
+    <li>받아쓰기와 AI 정리에는 오류가 있을 수 있어요. 특히 시험 범위·과제 기한 같은 📌 중요 항목은 반드시 강의 공지·LearnUs 등 공식 안내로 다시 확인하세요.</li>
+    <li>이 서비스는 있는 그대로 무료로 제공되며, 예고 없이 바뀌거나 중단될 수 있어요.</li>
+  </ul>
+
+  <h2>문의</h2>
+  <p>버그·제안은 <a href="https://github.com/windefeated-dot/lecture-notes/issues" target="_blank" rel="noopener">GitHub 이슈</a>로 남겨 주세요. 소스 코드도 같은 곳에서 볼 수 있어요.</p>
+</main>
+</body>
+</html>
